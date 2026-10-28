@@ -45,4 +45,13 @@ class MicroService : AccessibilityService() {
     // ---------- Voice input ----------
     fun listen() {
         Handler(Looper.getMainLooper()).post {
-            recognizer?
+        recognizer?.startListening(
+            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
+            }
+        )
+    }
+    }
