@@ -1,11 +1,8 @@
 package com.micro.assistant
 
 import android.accessibilityservice.AccessibilityService
-import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.hardware.camera2.CameraManager
-import android.media.AudioManager
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -20,17 +17,29 @@ import java.util.Locale
 
 class MicroService : AccessibilityService() {
 
-    companion object { var instance: MicroService? = null }
+    // MainActivity reads MicroService.instance and calls listen() on it.
+    companion object {
+        var instance: MicroService? = null
+    }
 
-    private var recognizer: SpeechRecognizer? = null
+    private val main = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var recognizer: SpeechRecognizer? = null
 
     override fun onServiceConnected() {
+        super.onServiceConnected()
         instance = this
-        tts = TextToSpeech(this) { if (it == TextToSpeech.SUCCESS) tts?.language = Locale.getDefault() }
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.setLanguage(Locale.getDefault())
+                ttsReady = true
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+
     override fun onInterrupt() {}
 
     override fun onDestroy() {
@@ -38,21 +47,4 @@ class MicroService : AccessibilityService() {
         recognizer?.destroy()
         tts?.shutdown()
         super.onDestroy()
-    }
-
-    fun say(text: String) { tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "micro") }
-
-    // ---------- Voice input ----------
-    fun listen() {
-        Handler(Looper.getMainLooper()).post {
-        recognizer?.startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                )
-            }
-        )
-    }
-    }
-}
+ 
