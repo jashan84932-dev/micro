@@ -146,7 +146,7 @@ class Brain(private val hands: Hands) {
                     "लगता है Gemini की key सही नहीं है। Settings में एक बार चेक कर लो।"
                 e.code == 401 || e.code == 403 -> "Gemini की key काम नहीं कर रही। Settings में चेक कर लो।"
                 e.code == 429 -> "अरे, Gemini की free limit थोड़ी देर के लिए पूरी हो गई। एक मिनट रुककर फिर बोलो।"
-                e.code >= 500 -> "Gemini का server अभी busy है, थोड़ी देर बाद try करते हैं।"
+                e.code >= 500 -> "Gemini का server अभी busy है, error ${e.code}. थोड़ी देर बाद फिर बोलो।"
                 else -> "Gemini से जवाब नहीं आया, error ${e.code}."
             }
         } catch (e: IOException) {
@@ -166,14 +166,16 @@ class Brain(private val hands: Hands) {
             .put("contents", contents)
             .put("tools", geminiTools())
             .put("generationConfig", JSONObject().put("maxOutputTokens", 2048))
-        var attempt = 0
-        while (true) {
-            val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/${Prefs.geminiModel}:generateContent")
+        // If one model is busy / missing, quietly try the next one.
+        val models = (listOf(Prefs.geminiModel) + GEMINI_FALLBACKS).distinct()
+        var last: ApiError? = null
+        for (model in models) {
+            val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
                 .openConnection() as HttpURLConnection
             try {
                 conn.requestMethod = "POST"
                 conn.connectTimeout = 20000
-                conn.readTimeout = 90000
+                conn.readTimeout = 60000
                 conn.doOutput = true
                 conn.setRequestProperty("content-type", "application/json")
                 conn.setRequestProperty("x-goog-api-key", Prefs.geminiKey)
@@ -182,16 +184,15 @@ class Brain(private val hands: Hands) {
                 val stream = if (code in 200..299) conn.inputStream else conn.errorStream
                 val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
                 if (code in 200..299) return JSONObject(text)
-                if ((code == 429 || code >= 500) && attempt == 0) {
-                    attempt++
-                    Thread.sleep(4000)
-                    continue
-                }
-                throw ApiError(code, text)
+                val err = ApiError(code, text)
+                last = err
+                val tryNext = code == 429 || code == 404 || code >= 500
+                if (!tryNext) throw err
             } finally {
                 conn.disconnect()
             }
         }
+        throw last ?: ApiError(0, "no answer")
     }
 
     /** Same tools as for Claude, written the way Gemini wants them. */
@@ -502,6 +503,7 @@ Current date and time: $now (India).
         private const val API_URL = "https://api.anthropic.com/v1/messages"
         private const val MAX_STEPS = 10
         private const val FREE_URL = "https://text.pollinations.ai/openai"
+        private val GEMINI_FALLBACKS = listOf("gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite")
         private val FREE_MODELS = listOf("openai", "mistral", "llama", "openai")
 
         private val FREE_TOOL_GUIDE = """
