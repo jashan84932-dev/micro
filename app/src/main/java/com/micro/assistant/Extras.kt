@@ -86,18 +86,19 @@ object Extras {
         }
 
         // ----- read the screen aloud (a summary goes to the AI) -----
-        if (any("screen", "स्क्रीन") &&
-            any("पढ़", "पढ", "padh", "read", "सुनाओ", "sunao") &&
+        if (any("screen", "स्क्रीन") && !any("screenshot", "स्क्रीनशॉट", "स्क्रीन शॉट") &&
+            any("पढ़", "पढ", "पड़", "padh", "pad ", "pado", "read", "सुनाओ", "sunao", "kya hai", "क्या है", "क्या लिखा", "kya likha", "kya dikh", "क्या दिख", "बताओ", "batao", "दिखा") &&
             !any("summary", "सारांश", "समरी", "summarize", "समझाओ", "samjhao", "khulasa", "संक्षेप")
         ) {
             return readScreenAloud(hands)
         }
 
         // ----- camera: what is this? -----
-        if (any("ye kya hai", "yeh kya hai", "ये क्या है", "यह क्या है", "isko dekho", "इसे देखो", "इसको देखो",
+        if ((any("camera", "कैमरा", "कैमरे") && any("dekh", "देख", "batao", "बताओ", "kya hai", "क्या है", "pehchan", "पहचान", "scan", "स्कैन")) ||
+            any("ye kya hai", "yeh kya hai", "ये क्या है", "यह क्या है", "isko dekho", "इसे देखो", "इसको देखो",
                 "camera se", "कैमरे से", "कैमरा से", "dekh ke batao", "देखकर बताओ", "देख के बताओ", "what is this", "what's this", "photo kheencho", "फोटो खींचो")
         ) {
-            return startCamera(ctx)
+            return startCamera(ctx, hands)
         }
 
         // ----- battery -----
@@ -472,10 +473,10 @@ object Extras {
 
     // ------------------------------------------------------------------ camera
 
-    private fun startCamera(ctx: Context): String {
+    private fun startCamera(ctx: Context, hands: Hands): String {
         if (Prefs.geminiKey.isBlank()) return "फोटो देखने के लिए Gemini key चाहिए। Micro की settings में डाल दो।"
         return try {
-            ctx.startActivity(Intent(ctx, CameraActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            hands.openActivity(Intent(ctx, CameraActivity::class.java))
             "कैमरा खुल रहा है। फोटो खींचकर OK दबा दो, फिर मैं बताऊँगा।"
         } catch (e: Exception) {
             "कैमरा नहीं खुल पाया।"

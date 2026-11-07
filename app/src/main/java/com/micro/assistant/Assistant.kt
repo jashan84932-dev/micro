@@ -127,6 +127,9 @@ class Assistant private constructor(private val app: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, app.packageName)
+            // stop waiting sooner after you finish speaking = faster replies
+            putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 900L)
+            putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 700L)
         }
         state("Listening…", OrbView.LISTEN)
         r.startListening(intent)
@@ -231,6 +234,10 @@ class Assistant private constructor(private val app: Context) {
     private fun think(text: String) {
         val gen = ++generation
         state("Thinking…", OrbView.THINK)
+        // if the answer takes long, say something so it does not feel dead
+        main.postDelayed({
+            if (gen == generation && mode == OrbView.THINK) voice.speak("हम्म, एक सेकंड।") { }
+        }, 3000)
         Thread {
             val reply = try {
                 Local.handle(hands, text) ?: brain.reply(text)

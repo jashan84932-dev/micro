@@ -41,6 +41,9 @@ class Hands(private val app: Context) {
         "The Accessibility service is off, so I can't see or control the screen. " +
             "Ask the user to turn Micro on in Accessibility settings."
 
+    /** Starts a screen of this app even while Micro is in the background (uses the accessibility service). */
+    fun openActivity(intent: Intent) = launch(intent)
+
     private fun launch(intent: Intent) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ctx.startActivity(intent)

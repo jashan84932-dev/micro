@@ -96,5 +96,5 @@ object Prefs {
         set(v) = write("history", v)
 
     const val DEFAULT_MODEL = "claude-sonnet-5-5"
-    const val DEFAULT_GEMINI = "gemini-flash-latest"
+    const val DEFAULT_GEMINI = "gemini-2.5-flash"
 }

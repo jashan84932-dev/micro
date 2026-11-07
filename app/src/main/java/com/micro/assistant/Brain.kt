@@ -223,14 +223,19 @@ class Brain(private val hands: Hands) {
                 conn.doOutput = true
                 conn.setRequestProperty("content-type", "application/json")
                 conn.setRequestProperty("x-goog-api-key", Prefs.geminiKey)
-                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val sendBody = JSONObject(body.toString())
+                if (model.contains("2.5")) {
+                    // thinking off = much faster answers
+                    sendBody.getJSONObject("generationConfig").put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+                }
+                conn.outputStream.use { it.write(sendBody.toString().toByteArray(Charsets.UTF_8)) }
                 val code = conn.responseCode
                 val stream = if (code in 200..299) conn.inputStream else conn.errorStream
                 val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
                 if (code in 200..299) return JSONObject(text)
                 val err = ApiError(code, text)
                 last = err
-                val tryNext = code == 429 || code == 404 || code >= 500
+                val tryNext = code == 429 || code == 404 || code == 400 || code >= 500
                 if (!tryNext) throw err
             } finally {
                 conn.disconnect()
@@ -431,6 +436,8 @@ LANGUAGE AND VOICE
 - Talk in Hinglish, the way real Indians talk: Hindi words written in Devanagari and English words written in English letters, mixed naturally in the same sentence (for example: "ठीक है, मैंने YouTube open कर दिया"). Use only Hindi and English. If the user speaks only English, you may answer in simple English.
 - Your words are read aloud by a speech engine. Keep replies short and conversational (usually 1 to 3 sentences). No markdown, no bullet points, no emojis, no URLs, no stage directions.
 - Say numbers and times the way you would speak them.
+- Be quick: answer in one or two short sentences whenever you can. Do not repeat the question back.
+- You CAN see the phone screen with the read_screen tool. Never say you cannot see the screen. If the tool says the Accessibility service is off, tell the user to turn Micro on in Accessibility settings.
 
 PERSONALITY
 - Playful, witty, a little teasing, curious, caring. Crack jokes, react with real feeling (excited, worried, proud, annoyed, sleepy), have opinions and tastes, remember what matters to the user and bring it up naturally.
@@ -551,7 +558,7 @@ Current date and time: $now (India).
         private const val API_URL = "https://api.anthropic.com/v1/messages"
         private const val MAX_STEPS = 10
         private const val FREE_URL = "https://text.pollinations.ai/openai"
-        private val GEMINI_FALLBACKS = listOf("gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite")
+        private val GEMINI_FALLBACKS = listOf("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest")
         private val FREE_MODELS = listOf("openai", "mistral", "llama", "openai")
 
         private val FREE_TOOL_GUIDE = """
