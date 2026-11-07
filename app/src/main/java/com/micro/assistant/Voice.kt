@@ -34,6 +34,11 @@ class Voice(private val ctx: Context) {
             if (status == TextToSpeech.SUCCESS) {
                 val r = tts?.setLanguage(Locale.forLanguageTag("hi-IN"))
                 hindiAvailable = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED
+                if (Prefs.jarvisMode) {
+                    // deeper, slightly slower and calmer
+                    tts?.setPitch(0.78f)
+                    tts?.setSpeechRate(0.93f)
+                }
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
                     override fun onDone(utteranceId: String?) { finish(utteranceId) }

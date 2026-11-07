@@ -82,6 +82,13 @@ object Prefs {
             sp?.edit()?.putBoolean("bargeIn", v)?.apply()
         }
 
+    /** Jarvis-style personality and voice (calm, formal, "Sir"). Off = friendly buddy. */
+    var jarvisMode: Boolean
+        get() = sp?.getBoolean("jarvisMode", true) ?: true
+        set(v) {
+            sp?.edit()?.putBoolean("jarvisMode", v)?.apply()
+        }
+
     /** IP address of the paired smart TV on the hotspot. */
     var tvIp: String
         get() = read("tvIp", "")

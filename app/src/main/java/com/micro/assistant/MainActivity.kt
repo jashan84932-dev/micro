@@ -183,6 +183,7 @@ class MainActivity : Activity() {
             isChecked = on
             setOnCheckedChangeListener { _, v -> set(v) }
         }
+        box.addView(option("Jarvis style (calm, formal, calls me Sir) - restart Micro after changing", Prefs.jarvisMode) { Prefs.jarvisMode = it })
         box.addView(option("Wake word: answer only after I say \"Hey Micro\"", Prefs.wakeWord) { Prefs.wakeWord = it })
         box.addView(option("Let me interrupt Micro by saying \"ruko\" / \"stop\"", Prefs.bargeIn) { Prefs.bargeIn = it })
 
