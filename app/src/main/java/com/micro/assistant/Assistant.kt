@@ -25,6 +25,7 @@ class Assistant private constructor(private val app: Context) {
         fun get(ctx: Context): Assistant {
             val a = ctx.applicationContext
             Prefs.init(a)
+            Tv.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 

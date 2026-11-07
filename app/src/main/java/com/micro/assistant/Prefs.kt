@@ -68,6 +68,11 @@ object Prefs {
         get() = read("voiceId", "")
         set(v) = write("voiceId", v.trim())
 
+    /** IP address of the paired smart TV on the hotspot. */
+    var tvIp: String
+        get() = read("tvIp", "")
+        set(v) = write("tvIp", v.trim())
+
     var facts: String
         get() = read("facts", "[]")
         set(v) = write("facts", v)

@@ -171,6 +171,31 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
         })
 
+        box.addView(label("SMART TV (Android TV / Aiwa) - optional", 15f))
+        box.addView(label("Turn the TV on and connect it to this phone's hotspot (or the same Wi-Fi)."))
+        box.addView(button("5. Pair my TV - show code on TV") {
+            Toast.makeText(this, "Looking for the TV...", Toast.LENGTH_SHORT).show()
+            Thread {
+                val r = Tv.startPairing()
+                runOnUiThread { Toast.makeText(this, r, Toast.LENGTH_LONG).show() }
+            }.start()
+        })
+        val tvCode = field("code shown on the TV")
+        box.addView(tvCode)
+        box.addView(button("6. Confirm TV code") {
+            val c = tvCode.text.toString()
+            Thread {
+                val r = Tv.finishPairing(c)
+                runOnUiThread { Toast.makeText(this, r, Toast.LENGTH_LONG).show() }
+            }.start()
+        })
+        box.addView(button("Test TV: volume up") {
+            Thread {
+                val r = Tv.run("volume_up")
+                runOnUiThread { Toast.makeText(this, r, Toast.LENGTH_LONG).show() }
+            }.start()
+        })
+
         box.addView(label("Free Gemini key (BEST free brain) - get it at aistudio.google.com"))
         geminiKey = field("paste Gemini key here", secret = true, value = Prefs.geminiKey)
         box.addView(geminiKey)

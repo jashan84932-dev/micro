@@ -444,6 +444,8 @@ Current date and time: $now (India).
         put(tool("press_button", "Press a system button: back, home, recents, notifications, quick_settings, lock_screen, screenshot, power_menu.", mapOf("button" to str("back | home | recents | notifications | quick_settings | lock_screen | screenshot | power_menu")), listOf("button")))
         put(tool("volume", "Change the media volume.", mapOf("action" to str("up | down | max")), listOf("action")))
         put(tool("flashlight", "Turn the flashlight (torch) on or off.", mapOf("state" to str("on or off")), listOf("state")))
+        put(tool("brightness", "Set phone screen brightness. Give level 0-100, or change as a relative step (e.g. +20 / -20).", mapOf("level" to num("0-100 (optional)"), "change" to num("relative change in percent, e.g. 20 or -20 (optional)")), emptyList()))
+        put(tool("tv", "Control the paired smart TV like a remote. command: power, home, back, up, down, left, right, ok, volume_up, volume_down, mute, channel_up, channel_down, menu, play_pause, settings, youtube, netflix, prime. times repeats a key press.", mapOf("command" to str("remote command"), "times" to num("repeat count, default 1")), listOf("command")))
         put(tool("open_settings", "Open a system settings page (Android does not let apps flip switches directly; after opening you can click the switch).", mapOf("page" to str("wifi | bluetooth | airplane | location | display | sound | battery | apps | hotspot | settings")), listOf("page")))
         put(tool("call", "Call a person by contact name, or a phone number. Calls directly when the user allowed it.", mapOf("name" to str("Contact name (optional)"), "number" to str("Phone number (optional)")), emptyList()))
         put(tool("open_app", "Open an installed app by its name.", mapOf("name" to str("App name, e.g. WhatsApp, YouTube, Camera")), listOf("name")))
@@ -470,6 +472,8 @@ Current date and time: $now (India).
             "press_button" -> hands.press(a.optString("button"))
             "volume" -> hands.volume(a.optString("action"))
             "flashlight" -> hands.torch(!a.optString("state").lowercase(Locale.ROOT).contains("off"))
+            "brightness" -> hands.brightness(if (a.has("level")) a.optInt("level") else null, a.optInt("change", 0))
+            "tv" -> Tv.run(a.optString("command"), a.optInt("times", 1))
             "open_settings" -> hands.openSettings(a.optString("page"))
             "call" -> {
                 val num = a.optString("number")
@@ -522,6 +526,8 @@ Tools:
 - press_button {"button":"back"}  (back, home, recents, notifications, quick_settings, lock_screen, screenshot, power_menu)
 - volume {"action":"up"}  (up, down, max)
 - flashlight {"state":"on"}  (on or off)
+- brightness {"level":50}  (0-100)  or  brightness {"change":20}  (relative, negative = dimmer)
+- tv {"command":"volume_up","times":3}  (power, home, back, up, down, left, right, ok, volume_up, volume_down, mute, channel_up, channel_down, menu, play_pause, settings, youtube, netflix, prime) - use when the user talks about the TV
 - open_settings {"page":"wifi"}  (wifi, bluetooth, airplane, location, display, sound, battery, apps, hotspot, settings)
 - call {"name":"Mummy"}  or  call {"number":"98..."}
 - open_app {"name":"WhatsApp"}

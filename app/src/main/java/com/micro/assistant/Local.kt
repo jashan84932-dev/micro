@@ -62,6 +62,24 @@ object Local {
         fun any(vararg w: String) = w.any { t.contains(strip(it)) }
         fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
 
+        // ----- smart TV remote -----
+        if (any("tv", "टीवी", "टी वी", "television", "टेलीविजन")) {
+            tvCommand(t, words)?.let { return it }
+        }
+
+        // ----- brightness -----
+        if (any("brightness", "ब्राइटनेस", "ब्राइटनस", "brightnes", "रोशनी")) {
+            val num = words.firstNotNullOfOrNull { numberOf(it) }
+            return when {
+                any("full", "max", "फुल", "मैक्स", "सबसे ज्यादा") -> hands.brightness(100)
+                any("min", "lowest", "मिनिमम", "सबसे कम") -> hands.brightness(5)
+                num != null && !any("badha", "बढ़ा", "बढा", "kam", "कम", "घटा", "increase", "decrease", "up", "down") -> hands.brightness(num.coerceIn(0, 100))
+                any("बढ़ा", "बढा", "badha", "increase", "up", "ज्यादा", "zyada", "high", "तेज") -> hands.brightness(null, num ?: 20)
+                any("कम", "kam", "घटा", "ghata", "decrease", "down", "low", "dim", "धीमा") -> hands.brightness(null, -(num ?: 20))
+                else -> hands.openSettings("display")
+            }
+        }
+
         // ----- time and date -----
         if (any("कितने बजे", "टाइम क्या", "time kya", "what time", "समय क्या", "समय बताओ", "टाइम बताओ", "current time", "time batao")) {
             return timeReply()
@@ -291,4 +309,35 @@ object Local {
     }
 
     private fun doIt(result: String, okText: String): String = if (isOk(result)) okText else fail(result)
+
+    private fun tvCommand(t: String, words: List<String>): String? {
+        fun any(vararg w: String) = w.any { t.contains(strip(it)) }
+        fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
+        val times = words.firstNotNullOfOrNull { numberOf(it) }?.coerceIn(1, 20) ?: 1
+        val up = any("बढ़ा", "बढा", "badha", "increase", "ज्यादा", "zyada", "up", "ऊपर", "plus", "next", "अगला", "agla")
+        val down = any("घटा", "ghata", "कम", "kam", "decrease", "down", "नीचे", "minus", "previous", "पिछला", "pichla", "low")
+        val cmd: String? = when {
+            any("volume", "वॉल्यूम", "आवाज", "awaz", "awaaz") -> if (down && !up) "volume_down" else "volume_up"
+            any("mute", "म्यूट", "unmute", "चुप") -> "mute"
+            any("channel", "चैनल") -> if (down && !up) "channel_down" else "channel_up"
+            any("youtube", "यूट्यूब", "यू ट्यूब") -> "youtube"
+            any("netflix", "नेटफ्लिक्स") -> "netflix"
+            any("prime", "प्राइम") -> "prime"
+            (any("बंद", "band", "ऑफ", "बन्द", "चालू", "ऑन", "power", "पावर", "शुरू") || word("on", "off", "start")) -> "power"
+            any("home", "होम") -> "home"
+            any("back", "बैक", "पीछे", "वापस") -> "back"
+            any("settings", "सेटिंग") -> "settings"
+            any("menu", "मेन्यू", "मेनू") -> "menu"
+            any("pause", "play", "पॉज", "प्ले", "रोको", "चलाओ") -> "play_pause"
+            (word("ok", "okay", "select", "enter") || any("ओके", "सेलेक्ट", "एंटर", "ठीक")) -> "ok"
+            any("left", "लेफ्ट", "बाएं", "बायें", "बाया") -> "left"
+            any("right", "राइट", "दाएं", "दायें", "दाया") -> "right"
+            word("up", "ऊपर", "अप") -> "up"
+            word("down", "नीचे", "डाउन") -> "down"
+            else -> null
+        }
+        if (cmd == null) return null
+        val r = Tv.run(cmd, times)
+        return if (r.startsWith("Sent") || r.startsWith("Opened")) "ठीक है।" else r
+    }
 }
