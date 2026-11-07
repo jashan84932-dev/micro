@@ -160,6 +160,50 @@ class Brain(private val hands: Hands) {
         return finalText
     }
 
+    /** Sends a photo to Gemini and returns a short spoken description. */
+    fun describeImage(jpegBase64: String): String {
+        if (Prefs.geminiKey.isBlank()) return "फोटो देखने के लिए Gemini key चाहिए।"
+        val parts = JSONArray()
+            .put(JSONObject().put("text", "इस फोटो में क्या है? हिंदी (थोड़ी English मिलाकर) में 2-3 छोटे वाक्यों में बताओ, जैसे दोस्त को बता रहे हो।"))
+            .put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", jpegBase64)))
+        val body = JSONObject()
+            .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", parts)))
+            .put("generationConfig", JSONObject().put("maxOutputTokens", 1024))
+        val models = (listOf(Prefs.geminiModel) + GEMINI_FALLBACKS).distinct()
+        var lastCode = 0
+        for (model in models) {
+            val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                .openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 20000
+                conn.readTimeout = 60000
+                conn.doOutput = true
+                conn.setRequestProperty("content-type", "application/json")
+                conn.setRequestProperty("x-goog-api-key", Prefs.geminiKey)
+                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                lastCode = code
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                if (code in 200..299) {
+                    val ps = JSONObject(text).optJSONArray("candidates")?.optJSONObject(0)
+                        ?.optJSONObject("content")?.optJSONArray("parts")
+                    val sb = StringBuilder()
+                    if (ps != null) for (i in 0 until ps.length()) sb.append(ps.optJSONObject(i)?.optString("text", "") ?: "")
+                    val out = sb.toString().trim()
+                    return if (out.isNotEmpty()) out else "फोटो से मुझे कुछ समझ नहीं आया।"
+                }
+                if (!(code == 429 || code == 404 || code >= 500)) break
+            } catch (e: Exception) {
+                lastCode = -1
+            } finally {
+                conn.disconnect()
+            }
+        }
+        return "फोटो नहीं देख पाया (error $lastCode)। थोड़ी देर बाद फिर कोशिश करो।"
+    }
+
     private fun callGemini(contents: JSONArray): JSONObject {
         val body = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt()))))
@@ -445,7 +489,7 @@ Current date and time: $now (India).
         put(tool("volume", "Change the media volume.", mapOf("action" to str("up | down | max")), listOf("action")))
         put(tool("flashlight", "Turn the flashlight (torch) on or off.", mapOf("state" to str("on or off")), listOf("state")))
         put(tool("brightness", "Set phone screen brightness. Give level 0-100, or change as a relative step (e.g. +20 / -20).", mapOf("level" to num("0-100 (optional)"), "change" to num("relative change in percent, e.g. 20 or -20 (optional)")), emptyList()))
-        put(tool("tv", "Control the paired smart TV like a remote. command: power, home, back, up, down, left, right, ok, volume_up, volume_down, mute, channel_up, channel_down, menu, play_pause, settings, youtube, netflix, prime. times repeats a key press.", mapOf("command" to str("remote command"), "times" to num("repeat count, default 1")), listOf("command")))
+        put(tool("tv", "Control the paired smart TV like a remote. command: power, home, back, up, down, left, right, ok, volume_up, volume_down, mute, channel_up, channel_down, menu, play_pause, settings, youtube, netflix, prime. times repeats a key press.", mapOf("command" to str("remote command"), "times" to num("repeat count, default 1"), "query" to str("YouTube search text to show on the TV (optional; then command can be youtube)")), listOf("command")))
         put(tool("open_settings", "Open a system settings page (Android does not let apps flip switches directly; after opening you can click the switch).", mapOf("page" to str("wifi | bluetooth | airplane | location | display | sound | battery | apps | hotspot | settings")), listOf("page")))
         put(tool("call", "Call a person by contact name, or a phone number. Calls directly when the user allowed it.", mapOf("name" to str("Contact name (optional)"), "number" to str("Phone number (optional)")), emptyList()))
         put(tool("open_app", "Open an installed app by its name.", mapOf("name" to str("App name, e.g. WhatsApp, YouTube, Camera")), listOf("name")))
@@ -473,7 +517,7 @@ Current date and time: $now (India).
             "volume" -> hands.volume(a.optString("action"))
             "flashlight" -> hands.torch(!a.optString("state").lowercase(Locale.ROOT).contains("off"))
             "brightness" -> hands.brightness(if (a.has("level")) a.optInt("level") else null, a.optInt("change", 0))
-            "tv" -> Tv.run(a.optString("command"), a.optInt("times", 1))
+            "tv" -> if (a.optString("query").isNotBlank()) Tv.search(a.optString("query")) else Tv.run(a.optString("command"), a.optInt("times", 1))
             "open_settings" -> hands.openSettings(a.optString("page"))
             "call" -> {
                 val num = a.optString("number")

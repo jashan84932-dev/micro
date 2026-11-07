@@ -18,7 +18,7 @@ import java.util.Locale
 object Local {
 
     /** Lower-case, and remove the Devanagari "nukta" dot so spelling variants compare equal. */
-    private fun strip(s: String): String =
+    internal fun strip(s: String): String =
         Normalizer.normalize(s.lowercase(Locale.ROOT), Normalizer.Form.NFD).replace("़", "")
 
     private fun norm(s: String): String =
@@ -51,7 +51,7 @@ object Local {
         "nine" to 9, "ten" to 10, "eleven" to 11, "twelve" to 12, "fifteen" to 15, "twenty" to 20, "thirty" to 30
     ).mapKeys { strip(it.key) }
 
-    private fun numberOf(token: String): Int? = token.toIntOrNull() ?: NUM_WORDS[strip(token)]
+    internal fun numberOf(token: String): Int? = token.toIntOrNull() ?: NUM_WORDS[strip(token)]
 
     /** Returns the sentence to speak, or null if this is not a phone command. */
     fun handle(hands: Hands, raw: String): String? {
@@ -61,6 +61,9 @@ object Local {
 
         fun any(vararg w: String) = w.any { t.contains(strip(it)) }
         fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
+
+        // ----- answer to a pending WhatsApp draft -----
+        Extras.handlePending(hands, t, words)?.let { return it }
 
         // ----- smart TV remote -----
         if (any("tv", "टीवी", "टी वी", "television", "टेलीविजन")) {
@@ -112,6 +115,9 @@ object Local {
                 return doIt(hands.volume(action), reply)
             }
         }
+
+        // ----- extras: battery, music, calculator, reminders, WhatsApp, notifications, camera ... -----
+        Extras.handle(hands, t, words, raw)?.let { return it }
 
         // ----- system buttons (short phrases only) -----
         if (words.size <= 4) {
@@ -242,7 +248,7 @@ object Local {
             .trim()
     }
 
-    private fun parseAlarm(t: String, words: List<String>): Pair<Int, Int>? {
+    internal fun parseAlarm(t: String, words: List<String>): Pair<Int, Int>? {
         var h: Int
         var m = 0
         val hhmm = Regex("(\\d{1,2})[:.](\\d{2})").find(t)
@@ -286,7 +292,7 @@ object Local {
 
     private fun unitName(mult: Int) = when (mult) { 3600 -> "घंटे"; 60 -> "मिनट"; else -> "सेकंड" }
 
-    private fun timeReply(): String {
+    internal fun timeReply(): String {
         val c = Calendar.getInstance()
         val h = c.get(Calendar.HOUR_OF_DAY)
         val m = c.get(Calendar.MINUTE)
@@ -313,6 +319,14 @@ object Local {
     private fun tvCommand(t: String, words: List<String>): String? {
         fun any(vararg w: String) = w.any { t.contains(strip(it)) }
         fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
+        if (any(*SEARCH_WORDS) && !any("volume", "वॉल्यूम", "channel", "चैनल", "pause", "पॉज")) {
+            val extra = arrayOf(*YT_WORDS, "netflix", "नेटफ्लिक्स", "tv", "टीवी", "टी वी", "television", "टेलीविजन")
+            val q = extractQuery(t, extra, true, false)
+            if (q.isNotBlank()) {
+                val r = Tv.search(q)
+                return if (r.startsWith("Sent") || r.startsWith("Opened")) "ठीक है, टीवी पर $q ढूँढ रहा हूँ।" else r
+            }
+        }
         val times = words.firstNotNullOfOrNull { numberOf(it) }?.coerceIn(1, 20) ?: 1
         val up = any("बढ़ा", "बढा", "badha", "increase", "ज्यादा", "zyada", "up", "ऊपर", "plus", "next", "अगला", "agla")
         val down = any("घटा", "ghata", "कम", "kam", "decrease", "down", "नीचे", "minus", "previous", "पिछला", "pichla", "low")

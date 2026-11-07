@@ -171,6 +171,23 @@ object Tv {
         }
     }
 
+    /** Opens YouTube search results for [query] on the TV. */
+    fun search(query: String): String {
+        synchronized(connLock) {
+            if (!isPaired()) return "The TV is not paired yet. Pair it in the Micro setup (step 5)."
+            val err = ensureRemote()
+            if (err != null) return err
+            return try {
+                val link = "https://www.youtube.com/results?search_query=" + android.net.Uri.encode(query)
+                send(fBytes(90, fStr(1, link)))
+                "Opened YouTube search for $query on the TV."
+            } catch (e: Exception) {
+                closeRemote()
+                "Couldn't send to the TV: ${e.message}"
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ remote connection
 
     @Volatile private var rSock: SSLSocket? = null

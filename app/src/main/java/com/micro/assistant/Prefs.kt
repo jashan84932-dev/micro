@@ -68,6 +68,20 @@ object Prefs {
         get() = read("voiceId", "")
         set(v) = write("voiceId", v.trim())
 
+    /** Only react after hearing "Hey Micro". */
+    var wakeWord: Boolean
+        get() = sp?.getBoolean("wakeWord", true) ?: true
+        set(v) {
+            sp?.edit()?.putBoolean("wakeWord", v)?.apply()
+        }
+
+    /** Say "ruko" / "stop" while Micro is speaking to cut it off. */
+    var bargeIn: Boolean
+        get() = sp?.getBoolean("bargeIn", true) ?: true
+        set(v) {
+            sp?.edit()?.putBoolean("bargeIn", v)?.apply()
+        }
+
     /** IP address of the paired smart TV on the hotspot. */
     var tvIp: String
         get() = read("tvIp", "")

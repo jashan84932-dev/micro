@@ -171,6 +171,21 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
         })
 
+        box.addView(button("Allow Micro to read notifications (optional)") {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        })
+
+        box.addView(label("VOICE OPTIONS", 15f))
+        fun option(text: String, on: Boolean, set: (Boolean) -> Unit) = CheckBox(this).apply {
+            this.text = text
+            setTextColor(SOFT)
+            buttonTintList = ColorStateList.valueOf(GOLD)
+            isChecked = on
+            setOnCheckedChangeListener { _, v -> set(v) }
+        }
+        box.addView(option("Wake word: answer only after I say \"Hey Micro\"", Prefs.wakeWord) { Prefs.wakeWord = it })
+        box.addView(option("Let me interrupt Micro by saying \"ruko\" / \"stop\"", Prefs.bargeIn) { Prefs.bargeIn = it })
+
         box.addView(label("SMART TV (Android TV / Aiwa) - optional", 15f))
         box.addView(label("Turn the TV on and connect it to this phone's hotspot (or the same Wi-Fi)."))
         box.addView(button("5. Pair my TV - show code on TV") {
