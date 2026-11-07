@@ -68,6 +68,25 @@ object Prefs {
         get() = read("voiceId", "")
         set(v) = write("voiceId", v.trim())
 
+    /** Only react after hearing "Hey Micro". */
+    var wakeWord: Boolean
+        get() = sp?.getBoolean("wakeWord", true) ?: true
+        set(v) {
+            sp?.edit()?.putBoolean("wakeWord", v)?.apply()
+        }
+
+    /** Say "ruko" / "stop" while Micro is speaking to cut it off. */
+    var bargeIn: Boolean
+        get() = sp?.getBoolean("bargeIn", true) ?: true
+        set(v) {
+            sp?.edit()?.putBoolean("bargeIn", v)?.apply()
+        }
+
+    /** IP address of the paired smart TV on the hotspot. */
+    var tvIp: String
+        get() = read("tvIp", "")
+        set(v) = write("tvIp", v.trim())
+
     var facts: String
         get() = read("facts", "[]")
         set(v) = write("facts", v)
@@ -77,5 +96,5 @@ object Prefs {
         set(v) = write("history", v)
 
     const val DEFAULT_MODEL = "claude-sonnet-5-5"
-    const val DEFAULT_GEMINI = "gemini-flash-latest"
+    const val DEFAULT_GEMINI = "gemini-2.5-flash"
 }

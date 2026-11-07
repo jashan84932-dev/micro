@@ -41,6 +41,9 @@ class Hands(private val app: Context) {
         "The Accessibility service is off, so I can't see or control the screen. " +
             "Ask the user to turn Micro on in Accessibility settings."
 
+    /** Starts a screen of this app even while Micro is in the background (uses the accessibility service). */
+    fun openActivity(intent: Intent) = launch(intent)
+
     private fun launch(intent: Intent) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ctx.startActivity(intent)
@@ -287,6 +290,27 @@ class Hands(private val app: Context) {
             if (on) "Flashlight is on." else "Flashlight is off."
         } catch (e: Exception) {
             "Couldn't use the flashlight: ${e.message}"
+        }
+    }
+
+    /** level: 0-100, or relative change via delta (e.g. +20 / -20). */
+    fun brightness(level: Int?, delta: Int = 0): String {
+        return try {
+            if (!Settings.System.canWrite(ctx)) {
+                val i = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + ctx.packageName))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i)
+                return "Brightness needs one permission. Please allow Micro to modify system settings, then ask again."
+            }
+            val cr = ctx.contentResolver
+            val now = Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS, 128)
+            val target = if (level != null) level * 255 / 100 else now + delta * 255 / 100
+            val v = target.coerceIn(5, 255)
+            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, v)
+            "Brightness set to about ${v * 100 / 255} percent."
+        } catch (e: Exception) {
+            "Couldn't change brightness: ${e.message}"
         }
     }
 
