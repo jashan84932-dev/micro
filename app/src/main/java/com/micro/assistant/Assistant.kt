@@ -77,9 +77,30 @@ class Assistant private constructor(private val app: Context) {
 
     // ---------- Public controls ----------
 
+    private val batteryReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            if (!active || mode != OrbView.LISTEN) return
+            generation++
+            recognizer?.cancel()
+            val msg = if (Prefs.jarvisMode) "सर, बैटरी कम हो रही है। चार्जर लगा लीजिए।" else "अरे, बैटरी कम हो रही है, चार्जर लगा लो!"
+            log("${Prefs.friendName}: $msg")
+            state("Speaking…", OrbView.SPEAK)
+            speakThenListen(msg)
+        }
+    }
+    private var batteryRegistered = false
+
     fun startConversation() {
         main.post {
             if (active) return@post
+            if (!batteryRegistered) {
+                try {
+                    app.registerReceiver(batteryReceiver, android.content.IntentFilter(Intent.ACTION_BATTERY_LOW))
+                    batteryRegistered = true
+                } catch (e: Exception) {
+                    // alerts are optional
+                }
+            }
             active = true
             failures = 0
             awakeUntil = System.currentTimeMillis() + 30_000
@@ -90,6 +111,10 @@ class Assistant private constructor(private val app: Context) {
 
     fun stopConversation() {
         main.post {
+            if (batteryRegistered) {
+                try { app.unregisterReceiver(batteryReceiver) } catch (e: Exception) { /* ignore */ }
+                batteryRegistered = false
+            }
             active = false
             generation++
             recognizer?.cancel()
@@ -240,7 +265,7 @@ class Assistant private constructor(private val app: Context) {
         }, 3000)
         Thread {
             val reply = try {
-                Local.handle(hands, text) ?: brain.reply(text)
+                Extras.chain(hands, text) { brain.reply(it) } ?: Local.handle(hands, text) ?: brain.reply(text)
             } catch (e: Exception) {
                 "सॉरी, कुछ गड़बड़ हो गई।"
             }

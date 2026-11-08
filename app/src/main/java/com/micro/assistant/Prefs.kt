@@ -89,6 +89,11 @@ object Prefs {
             sp?.edit()?.putBoolean("jarvisMode", v)?.apply()
         }
 
+    /** Your own routines, saved as JSON: {"name": ["command", "command"]}. */
+    var routines: String
+        get() = read("routines", "{}")
+        set(v) = write("routines", v)
+
     /** IP address of the paired smart TV on the hotspot. */
     var tvIp: String
         get() = read("tvIp", "")

@@ -14,6 +14,8 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Extra instant commands: battery, storage, music keys, calculator, unit conversion,
@@ -69,6 +71,25 @@ object Extras {
         val ctx = appCtx ?: return null
         fun any(vararg w: String) = w.any { t.contains(strip(it)) }
         fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
+
+        // ----- your own routines (made by voice) -----
+        customRoutine(hands, t, words)?.let { return it }
+
+        // ----- phone sound mode -----
+        if (any("mode", "मोड") && any("silent", "साइलेंट", "vibrate", "वाइब्रेट", "normal", "नॉर्मल", "ring", "रिंग")) {
+            return ringerMode(ctx, t)
+        }
+
+        // ----- coin / dice / random -----
+        if (any("coin", "सिक्का", "toss", "टॉस", "सिक्के")) {
+            return if (Math.random() < 0.5) "सिक्का उछाला: चित आया।" else "सिक्का उछाला: पट आया।"
+        }
+        if (any("dice", "पासा", "डाइस", "पासे")) {
+            return "पासे पर ${(1..6).random()} आया।"
+        }
+        if (any("random number", "रैंडम नंबर", "रेंडम नंबर")) {
+            return "मेरा चुना हुआ नंबर ${(1..100).random()} है।"
+        }
 
         // ----- WhatsApp message -----
         if (any("whatsapp", "व्हाट्सएप", "व्हाट्सऐप", "वॉट्सऐप", "वाट्सएप", "व्हाट्सअप", "whatsap", "वाट्सऐप")) {
@@ -481,5 +502,124 @@ object Extras {
         } catch (e: Exception) {
             "कैमरा नहीं खुल पाया।"
         }
+    }
+
+    // ------------------------------------------------------------------ sound mode
+
+    private fun ringerMode(ctx: Context, t: String): String {
+        fun any(vararg w: String) = w.any { t.contains(strip(it)) }
+        val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return try {
+            when {
+                any("vibrate", "वाइब्रेट") -> {
+                    am.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                    "फ़ोन वाइब्रेट मोड पर है।"
+                }
+                any("silent", "साइलेंट") -> {
+                    am.ringerMode = AudioManager.RINGER_MODE_SILENT
+                    "फ़ोन साइलेंट कर दिया।"
+                }
+                else -> {
+                    am.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                    "फ़ोन नॉर्मल मोड पर है।"
+                }
+            }
+        } catch (e: Exception) {
+            try {
+                ctx.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (x: Exception) {
+                // ignore
+            }
+            "इसके लिए फ़ोन की अनुमति चाहिए। मैंने साउंड सेटिंग्स खोल दी हैं।"
+        }
+    }
+
+    // ------------------------------------------------------------------ your own routines
+
+    private val SEPARATORS = Regex("\\s*(?:,|\\s+(?:और|aur|phir|फिर|then|and|तथा|फिर से)\\s+)\\s*", RegexOption.IGNORE_CASE)
+
+    private fun loadRoutines(): JSONObject = try { JSONObject(Prefs.routines) } catch (e: Exception) { JSONObject() }
+
+    private fun customRoutine(hands: Hands, t: String, words: List<String>): String? {
+        fun any(vararg w: String) = w.any { t.contains(strip(it)) }
+        val hasRoutine = any("routine", "रूटीन", "रुटीन")
+        if (!hasRoutine) return null
+        val saved = loadRoutines()
+
+        // make: "routine banao padhai brightness 60 aur torch band"
+        if (any("banao", "बनाओ", "bana", "बना", "save", "सेव", "create", "जोड़ो", "add")) {
+            val after = Regex("(?:routine|रूटीन|रुटीन)\\s+(?:banao|बनाओ|bana|बना|save|सेव|create|add)\\s+(.+)").find(t)
+                ?: Regex("(?:banao|बनाओ|bana|बना|save|सेव|create|add)\\s+(?:routine|रूटीन|रुटीन)\\s+(.+)").find(t)
+                ?: return "ऐसे बोलो: रूटीन बनाओ पढ़ाई ब्राइटनेस 60 और टॉर्च बंद। पहला शब्द रूटीन का नाम होगा।"
+            val rest = after.groupValues[1].trim()
+            val name = rest.substringBefore(' ').trim()
+            val cmds = rest.substringAfter(' ', "").trim()
+                .replace(Regex("^(?:jisme|जिसमें|jismein|me|में|ki|की|mein)\\s+"), "")
+                .split(SEPARATORS).map { it.trim() }.filter { it.isNotBlank() }
+            if (name.isBlank() || cmds.isEmpty()) {
+                return "रूटीन में क्या-क्या करना है? जैसे: रूटीन बनाओ पढ़ाई ब्राइटनेस 60 और टॉर्च बंद।"
+            }
+            val arr = JSONArray()
+            cmds.forEach { arr.put(it) }
+            saved.put(name, arr)
+            Prefs.routines = saved.toString()
+            return "रूटीन $name सेव हो गया, इसमें ${cmds.size} काम हैं। चलाने के लिए बोलो: $name रूटीन चलाओ।"
+        }
+
+        // delete
+        if (any("hatao", "हटाओ", "delete", "डिलीट", "मिटाओ", "mitao", "remove")) {
+            val key = saved.keys().asSequence().firstOrNull { words.contains(strip(it)) || t.contains(strip(it)) }
+                ?: return "कौन-सा रूटीन हटाऊँ? नाम के साथ बोलो।"
+            saved.remove(key)
+            Prefs.routines = saved.toString()
+            return "रूटीन $key हटा दिया।"
+        }
+
+        // list
+        if (any("kaun", "कौन", "list", "लिस्ट", "kitne", "कितने", "batao", "बताओ", "naam", "नाम")) {
+            val mine = saved.keys().asSequence().toList()
+            val base = "सोने का टाइम, मूवी मोड, वर्क मोड और गुड मॉर्निंग"
+            return if (mine.isEmpty()) "मेरे रूटीन ये हैं: $base। अपना बनाने के लिए बोलो: रूटीन बनाओ।"
+            else "आपके रूटीन: ${mine.joinToString(", ")}। साथ में ये भी हैं: $base।"
+        }
+
+        // run
+        val key = saved.keys().asSequence().firstOrNull { words.contains(strip(it)) || t.contains(strip(it)) } ?: return null
+        val arr = saved.optJSONArray(key) ?: return null
+        var failed = 0
+        for (i in 0 until arr.length()) {
+            val r = try { Local.handle(hands, arr.optString(i)) } catch (e: Exception) { null }
+            if (r == null) failed++
+            try { Thread.sleep(500) } catch (e: InterruptedException) { /* ignore */ }
+        }
+        return if (failed == 0) "रूटीन $key चला दिया।" else "रूटीन $key चला दिया, पर $failed काम मैं सीधे नहीं कर पाया।"
+    }
+
+    // ------------------------------------------------------------------ several commands in one sentence
+
+    private val NO_CHAIN = listOf(
+        "whatsapp", "व्हाट्सएप", "व्हाट्सऐप", "message", "मैसेज", "search", "सर्च", "खोज", "ढूंढ", "yaad", "याद",
+        "call", "कॉल", " ko ", " को ", "routine", "रूटीन", "रुटीन", "plus", "minus"
+    )
+
+    /**
+     * "volume badhao aur torch chalu karo" -> runs each part. Parts that I cannot do locally go to the AI.
+     * Returns null if the sentence is not a simple list of short commands.
+     */
+    fun chain(hands: Hands, raw: String, ai: (String) -> String): String? {
+        val low = " " + raw.lowercase(Locale.getDefault()) + " "
+        if (NO_CHAIN.any { low.contains(it) }) return null
+        val parts = raw.split(SEPARATORS).map { it.trim() }.filter { it.isNotBlank() }
+        if (parts.size < 2 || parts.size > 4) return null
+        if (parts.any { it.split(Regex("\\s+")).size > 7 }) return null
+        val replies = ArrayList<String>()
+        for ((idx, p) in parts.withIndex()) {
+            val local = try { Local.handle(hands, p) } catch (e: Exception) { null }
+            if (idx == 0 && local == null) return null // not a command list: handle the whole sentence normally
+            val r = local ?: try { ai(p) } catch (e: Exception) { "कुछ गड़बड़ हो गई।" }
+            replies.add(r)
+            try { Thread.sleep(400) } catch (e: InterruptedException) { /* ignore */ }
+        }
+        return replies.joinToString(" ")
     }
 }
