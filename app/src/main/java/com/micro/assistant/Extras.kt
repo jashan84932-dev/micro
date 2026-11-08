@@ -82,6 +82,9 @@ object Extras {
         // ----- open phone, weather, expenses, lists, notes -----
         Daily.handle(hands, t, words, raw)?.let { return it }
 
+        // ----- system report, guard mode, driving mode, parking -----
+        Jarvis.handle(hands, t, words)?.let { return it }
+
         // ----- your own routines (made by voice) -----
         customRoutine(hands, t, words)?.let { return it }
 
@@ -280,6 +283,7 @@ object Extras {
         sb.append("आज ").append(f.format(Date())).append(" है। ")
         sb.append(Local.timeReply()).append(" ")
         weather()?.let { sb.append("मौसम: ").append(it).append("। ") }
+        sb.append(Jarvis.dayExtras(ctx))
         sb.append(batteryReply(ctx))
         return sb.toString()
     }

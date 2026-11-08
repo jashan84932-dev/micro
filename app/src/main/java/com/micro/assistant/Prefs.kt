@@ -123,6 +123,18 @@ object Prefs {
         get() = read("expenses", "[]")
         set(v) = write("expenses", v)
 
+    /** Where the car / bike was parked: "lat,lon,time". */
+    var park: String
+        get() = read("park", "")
+        set(v) = write("park", v)
+
+    /** Driving mode: read new messages aloud as they arrive. */
+    var readAloud: Boolean
+        get() = sp?.getBoolean("readAloud", false) ?: false
+        set(v) {
+            sp?.edit()?.putBoolean("readAloud", v)?.apply()
+        }
+
     /** IP address of the paired smart TV on the hotspot. */
     var tvIp: String
         get() = read("tvIp", "")

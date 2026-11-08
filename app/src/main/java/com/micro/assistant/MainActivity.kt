@@ -288,7 +288,8 @@ class MainActivity : Activity() {
                 Manifest.permission.READ_SMS,
                 Manifest.permission.SEND_SMS,
                 Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.ANSWER_PHONE_CALLS
+                Manifest.permission.ANSWER_PHONE_CALLS,
+                Manifest.permission.ACCESS_FINE_LOCATION
             ),
             1
         )

@@ -29,6 +29,7 @@ class Assistant private constructor(private val app: Context) {
             Extras.init(a)
             Comms.init(a)
             Daily.init(a)
+            Jarvis.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 
@@ -139,6 +140,48 @@ class Assistant private constructor(private val app: Context) {
         }
     }
 
+    private val announceQueue = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
+    /** Queues a sentence (for example a new message) to be spoken as soon as Micro is idle. */
+    fun announce(text: String) {
+        if (!active) return
+        while (announceQueue.size >= 5) announceQueue.poll()
+        announceQueue.add(text)
+    }
+
+    private val drainTick = object : Runnable {
+        override fun run() {
+            if (!active) return
+            if (mode == OrbView.LISTEN) {
+                val m = announceQueue.poll()
+                if (m != null) {
+                    generation++
+                    recognizer?.cancel()
+                    awakeUntil = System.currentTimeMillis() + 25_000
+                    log("${Prefs.friendName}: $m")
+                    state("Speaking…", OrbView.SPEAK)
+                    speakThenListen(m)
+                }
+            }
+            main.postDelayed(this, 2000)
+        }
+    }
+
+    private fun greetThenListen() {
+        if (!Prefs.jarvisMode) {
+            listen()
+            return
+        }
+        val g = try { Jarvis.greeting(app) } catch (e: Exception) { null }
+        if (g == null) {
+            listen()
+            return
+        }
+        log("${Prefs.friendName}: $g")
+        state("Speaking…", OrbView.SPEAK)
+        speakThenListen(g)
+    }
+
     fun startConversation() {
         main.post {
             if (active) return@post
@@ -163,7 +206,8 @@ class Assistant private constructor(private val app: Context) {
             failures = 0
             awakeUntil = System.currentTimeMillis() + 30_000
             acquireWake()
-            listen()
+            greetThenListen()
+            main.postDelayed(drainTick, 2000)
         }
     }
 
@@ -178,6 +222,8 @@ class Assistant private constructor(private val app: Context) {
                 phoneRegistered = false
             }
             main.removeCallbacks(habitTick)
+            main.removeCallbacks(drainTick)
+            announceQueue.clear()
             active = false
             generation++
             recognizer?.cancel()

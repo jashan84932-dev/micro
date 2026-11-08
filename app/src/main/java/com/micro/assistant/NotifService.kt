@@ -9,6 +9,15 @@ class NotifService : NotificationListenerService() {
 
     companion object {
         val recent = ArrayList<String>()
+        private val MSG_APPS = setOf(
+            "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "com.facebook.orca",
+            "com.google.android.apps.messaging", "com.android.mms", "com.samsung.android.messaging"
+        )
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        Prefs.init(applicationContext)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -25,6 +34,10 @@ class NotifService : NotificationListenerService() {
             packageManager.getApplicationLabel(packageManager.getApplicationInfo(s.packageName, 0)).toString()
         } catch (ex: Exception) {
             s.packageName
+        }
+        if (Prefs.readAloud && (n.category == Notification.CATEGORY_MESSAGE || s.packageName in MSG_APPS)) {
+            val say = (if (title.isBlank()) "$app पर नया मैसेज: $text" else "$app पर $title: $text").take(170)
+            Assistant.get(applicationContext).announce(say)
         }
         synchronized(recent) {
             recent.add("$app: $title $text".trim())
