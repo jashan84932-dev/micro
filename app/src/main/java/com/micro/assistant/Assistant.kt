@@ -30,6 +30,7 @@ class Assistant private constructor(private val app: Context) {
             Comms.init(a)
             Daily.init(a)
             Jarvis.init(a)
+            Fun.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 
@@ -152,7 +153,13 @@ class Assistant private constructor(private val app: Context) {
     private val drainTick = object : Runnable {
         override fun run() {
             if (!active) return
-            if (mode == OrbView.LISTEN) {
+            if (Gestures.quiet()) {
+                while (true) {
+                    val q = announceQueue.poll() ?: break
+                    faceDownNotes.add(q)
+                }
+            }
+            if (mode == OrbView.LISTEN && !Gestures.quiet()) {
                 val m = announceQueue.poll()
                 if (m != null) {
                     generation++
@@ -202,6 +209,18 @@ class Assistant private constructor(private val app: Context) {
                 }
             }
             main.postDelayed(habitTick, 60_000)
+            Gestures.onFaceDown = { faceDownNotes.clear() }
+            Gestures.onFlipUp = {
+                main.post {
+                    if (active && faceDownNotes.isNotEmpty()) {
+                        val n = faceDownNotes.size
+                        val sum = faceDownNotes.take(3).joinToString(". ")
+                        faceDownNotes.clear()
+                        announce(if (n == 1) "आपके पीछे एक मैसेज आया था। $sum" else "आपके पीछे $n मैसेज आए थे। $sum")
+                    }
+                }
+            }
+            Gestures.start(app, hands)
             active = true
             failures = 0
             awakeUntil = System.currentTimeMillis() + 30_000
@@ -223,6 +242,8 @@ class Assistant private constructor(private val app: Context) {
             }
             main.removeCallbacks(habitTick)
             main.removeCallbacks(drainTick)
+            Gestures.stop()
+            faceDownNotes.clear()
             announceQueue.clear()
             active = false
             generation++
@@ -275,6 +296,42 @@ class Assistant private constructor(private val app: Context) {
         main.postDelayed({ if (active) listen() }, delayMs)
     }
 
+    private var speechStart = 0L
+    private var rmsSum = 0f
+    private var rmsCount = 0
+    private var savedVol = -1
+
+    /** Two claps: shout "I am here" loudly so the phone can be found. */
+    private fun foundMe() {
+        if (!active) return
+        generation++
+        recognizer?.cancel()
+        try {
+            val am = app.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            savedVol = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+            am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC), 0)
+        } catch (e: Exception) {
+            // volume is optional
+        }
+        val line = if (Prefs.jarvisMode) "मैं यहाँ हूँ सर! मैं यहाँ हूँ सर! मैं यहाँ हूँ सर!" else "मैं यहाँ हूँ! मैं यहाँ हूँ! मैं यहाँ हूँ!"
+        log("${Prefs.friendName}: $line")
+        state("Speaking…", OrbView.SPEAK)
+        voice.speak(line) {
+            try {
+                if (savedVol >= 0) {
+                    val am = app.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                    am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, savedVol, 0)
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+            savedVol = -1
+            if (active) listen() else state("Ready", OrbView.IDLE)
+        }
+    }
+
+    private val faceDownNotes = ArrayList<String>()
+
     private val listener = object : RecognitionListener {
         override fun onResults(results: Bundle?) {
             if (!active) return
@@ -284,6 +341,10 @@ class Assistant private constructor(private val app: Context) {
                 return
             }
             failures = 0
+            val took = if (speechStart != 0L) System.currentTimeMillis() - speechStart else 0L
+            val avg = if (rmsCount > 0) rmsSum / rmsCount else 0f
+            speechStart = 0L
+            Mood.feed(text.trim().split(Regex("\\s+")).size, took, avg)?.let { announce(it) }
             heard(text.trim())
         }
 
@@ -308,9 +369,20 @@ class Assistant private constructor(private val app: Context) {
         }
 
         override fun onReadyForSpeech(params: Bundle?) {}
-        override fun onBeginningOfSpeech() {}
+        override fun onBeginningOfSpeech() {
+            speechStart = System.currentTimeMillis()
+            rmsSum = 0f
+            rmsCount = 0
+        }
         override fun onRmsChanged(rmsdB: Float) {
             level = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+            val now = System.currentTimeMillis()
+            if (speechStart != 0L) {
+                rmsSum += rmsdB
+                rmsCount++
+            } else if (Prefs.clapFind && mode == OrbView.LISTEN && Clap.feed(rmsdB, now)) {
+                main.post { foundMe() }
+            }
         }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
@@ -335,7 +407,7 @@ class Assistant private constructor(private val app: Context) {
                 relisten(250) // not for Micro - ignore silently
                 return
             }
-            if (Prefs.autoWake) Daily.wakeScreen(app)
+            if (Prefs.autoWake && !Gestures.pocketActive()) Daily.wakeScreen(app)
             // drop "hey micro" and keep the rest as the command
             val at = low.indexOf(w)
             var rest = (text.substring(0, at) + " " + text.substring(at + w.length)).trim()
@@ -391,6 +463,12 @@ class Assistant private constructor(private val app: Context) {
     }
 
     private fun speakThenListen(reply: String) {
+        if (Gestures.quiet()) {
+            // phone is face down: do not talk, just keep listening
+            awakeUntil = System.currentTimeMillis() + 25_000
+            if (active) listen()
+            return
+        }
         val my = generation
         voice.speak(reply) {
             stopBarge()

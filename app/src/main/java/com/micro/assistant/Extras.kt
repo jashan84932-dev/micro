@@ -84,6 +84,7 @@ object Extras {
 
         // ----- system report, guard mode, driving mode, parking -----
         Jarvis.handle(hands, t, words)?.let { return it }
+        Fun.handle(t, words, raw)?.let { return it }
 
         // ----- your own routines (made by voice) -----
         customRoutine(hands, t, words)?.let { return it }

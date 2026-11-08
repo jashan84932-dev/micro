@@ -135,6 +135,27 @@ object Prefs {
             sp?.edit()?.putBoolean("readAloud", v)?.apply()
         }
 
+    private fun flag(k: String, d: Boolean) = sp?.getBoolean(k, d) ?: d
+    private fun setFlag(k: String, v: Boolean) { sp?.edit()?.putBoolean(k, v)?.apply() }
+    var pocketMode: Boolean
+        get() = flag("pocketMode", false)
+        set(v) = setFlag("pocketMode", v)
+    var clapFind: Boolean
+        get() = flag("clapFind", false)
+        set(v) = setFlag("clapFind", v)
+    var moodAware: Boolean
+        get() = flag("moodAware", false)
+        set(v) = setFlag("moodAware", v)
+    var shakeTorch: Boolean
+        get() = flag("shakeTorch", true)
+        set(v) = setFlag("shakeTorch", v)
+    var faceDownQuiet: Boolean
+        get() = flag("faceDownQuiet", true)
+        set(v) = setFlag("faceDownQuiet", v)
+    var fakeCaller: String
+        get() = read("fakeCaller", "Mummy")
+        set(v) = write("fakeCaller", v)
+
     /** IP address of the paired smart TV on the hotspot. */
     var tvIp: String
         get() = read("tvIp", "")
