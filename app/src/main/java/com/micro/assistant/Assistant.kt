@@ -28,6 +28,7 @@ class Assistant private constructor(private val app: Context) {
             Tv.init(a)
             Extras.init(a)
             Comms.init(a)
+            Daily.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 
@@ -288,6 +289,7 @@ class Assistant private constructor(private val app: Context) {
                 relisten(250) // not for Micro - ignore silently
                 return
             }
+            if (Prefs.autoWake) Daily.wakeScreen(app)
             // drop "hey micro" and keep the rest as the command
             val at = low.indexOf(w)
             var rest = (text.substring(0, at) + " " + text.substring(at + w.length)).trim()

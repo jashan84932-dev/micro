@@ -185,6 +185,7 @@ class MainActivity : Activity() {
         }
         box.addView(option("Jarvis style (calm, formal, calls me Sir) - restart Micro after changing", Prefs.jarvisMode) { Prefs.jarvisMode = it })
         box.addView(option("Wake word: answer only after I say \"Hey Micro\"", Prefs.wakeWord) { Prefs.wakeWord = it })
+        box.addView(option("Wake the screen when I say \"Hey Micro\" and the phone is asleep", Prefs.autoWake) { Prefs.autoWake = it })
         box.addView(option("Let me interrupt Micro by saying \"ruko\" / \"stop\"", Prefs.bargeIn) { Prefs.bargeIn = it })
 
         box.addView(label("SMART TV (Android TV / Aiwa) - optional", 15f))

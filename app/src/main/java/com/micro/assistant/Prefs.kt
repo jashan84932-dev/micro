@@ -104,6 +104,25 @@ object Prefs {
         get() = read("habits", "{}")
         set(v) = write("habits", v)
 
+    /** Wake the screen when I say "Hey Micro" and the phone is asleep. */
+    var autoWake: Boolean
+        get() = sp?.getBoolean("autoWake", true) ?: true
+        set(v) {
+            sp?.edit()?.putBoolean("autoWake", v)?.apply()
+        }
+
+    var notes: String
+        get() = read("notes", "[]")
+        set(v) = write("notes", v)
+
+    var lists: String
+        get() = read("lists", "{}")
+        set(v) = write("lists", v)
+
+    var expenses: String
+        get() = read("expenses", "[]")
+        set(v) = write("expenses", v)
+
     /** IP address of the paired smart TV on the hotspot. */
     var tvIp: String
         get() = read("tvIp", "")

@@ -79,6 +79,9 @@ object Extras {
         // ----- devices on the hotspot -----
         Lan.handle(hands, t, words)?.let { return it }
 
+        // ----- open phone, weather, expenses, lists, notes -----
+        Daily.handle(hands, t, words, raw)?.let { return it }
+
         // ----- your own routines (made by voice) -----
         customRoutine(hands, t, words)?.let { return it }
 
