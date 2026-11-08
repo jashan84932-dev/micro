@@ -94,6 +94,16 @@ object Prefs {
         get() = read("routines", "{}")
         set(v) = write("routines", v)
 
+    /** Saved places: {"home": "...", "office": "..."}. */
+    var places: String
+        get() = read("places", "{}")
+        set(v) = write("places", v)
+
+    /** What you usually say at which hour (stays on the phone). */
+    var habits: String
+        get() = read("habits", "{}")
+        set(v) = write("habits", v)
+
     /** IP address of the paired smart TV on the hotspot. */
     var tvIp: String
         get() = read("tvIp", "")

@@ -39,6 +39,7 @@ object Extras {
 
     /** Called first for every sentence: answers "haan bhejo" / "nahi" after a WhatsApp draft. */
     fun handlePending(hands: Hands, t: String, words: List<String>): String? {
+        Comms.handlePending(hands, t, words)?.let { return it }
         if (pendingWhatsApp == 0L) return null
         if (System.currentTimeMillis() - pendingWhatsApp > 90_000) {
             pendingWhatsApp = 0L
@@ -71,6 +72,9 @@ object Extras {
         val ctx = appCtx ?: return null
         fun any(vararg w: String) = w.any { t.contains(strip(it)) }
         fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
+
+        // ----- calls, SMS, OTP, navigation, habits -----
+        Comms.handle(hands, t, words, raw)?.let { return it }
 
         // ----- your own routines (made by voice) -----
         customRoutine(hands, t, words)?.let { return it }

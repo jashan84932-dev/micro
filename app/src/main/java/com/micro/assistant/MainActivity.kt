@@ -282,7 +282,12 @@ class MainActivity : Activity() {
                 Manifest.permission.RECORD_AUDIO,
                 "android.permission.POST_NOTIFICATIONS",
                 Manifest.permission.READ_CONTACTS,
-                Manifest.permission.CALL_PHONE
+                Manifest.permission.CALL_PHONE,
+                Manifest.permission.READ_CALL_LOG,
+                Manifest.permission.READ_SMS,
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.ANSWER_PHONE_CALLS
             ),
             1
         )

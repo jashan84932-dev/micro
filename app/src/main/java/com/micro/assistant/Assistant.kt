@@ -27,6 +27,7 @@ class Assistant private constructor(private val app: Context) {
             Prefs.init(a)
             Tv.init(a)
             Extras.init(a)
+            Comms.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 
@@ -90,6 +91,53 @@ class Assistant private constructor(private val app: Context) {
     }
     private var batteryRegistered = false
 
+    private var phoneRegistered = false
+    private var lastRingNumber = ""
+    private var ringHandled = false
+    private val phoneReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            val st = i?.getStringExtra(android.telephony.TelephonyManager.EXTRA_STATE) ?: return
+            if (st == android.telephony.TelephonyManager.EXTRA_STATE_IDLE || st == android.telephony.TelephonyManager.EXTRA_STATE_OFFHOOK) {
+                ringHandled = false
+                lastRingNumber = ""
+                return
+            }
+            if (st != android.telephony.TelephonyManager.EXTRA_STATE_RINGING || ringHandled) return
+            val n = i?.getStringExtra(android.telephony.TelephonyManager.EXTRA_INCOMING_NUMBER) ?: ""
+            if (n.isNotBlank()) lastRingNumber = n
+            // the number often arrives in a second broadcast, so wait a moment
+            main.postDelayed({
+                if (ringHandled || !active) return@postDelayed
+                ringHandled = true
+                val msg = Comms.incomingCallText(lastRingNumber) ?: return@postDelayed
+                generation++
+                recognizer?.cancel()
+                awakeUntil = System.currentTimeMillis() + 25_000
+                log("${Prefs.friendName}: $msg")
+                state("Speaking…", OrbView.SPEAK)
+                speakThenListen(msg)
+            }, 1200)
+        }
+    }
+
+    private val habitTick = object : Runnable {
+        override fun run() {
+            if (!active) return
+            if (mode == OrbView.LISTEN) {
+                val q = Comms.habitOffer()
+                if (q != null) {
+                    generation++
+                    recognizer?.cancel()
+                    awakeUntil = System.currentTimeMillis() + 25_000
+                    log("${Prefs.friendName}: $q")
+                    state("Speaking…", OrbView.SPEAK)
+                    speakThenListen(q)
+                }
+            }
+            main.postDelayed(this, 60_000)
+        }
+    }
+
     fun startConversation() {
         main.post {
             if (active) return@post
@@ -101,6 +149,15 @@ class Assistant private constructor(private val app: Context) {
                     // alerts are optional
                 }
             }
+            if (!phoneRegistered) {
+                try {
+                    app.registerReceiver(phoneReceiver, android.content.IntentFilter(android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED))
+                    phoneRegistered = true
+                } catch (e: Exception) {
+                    // call announcements are optional
+                }
+            }
+            main.postDelayed(habitTick, 60_000)
             active = true
             failures = 0
             awakeUntil = System.currentTimeMillis() + 30_000
@@ -115,6 +172,11 @@ class Assistant private constructor(private val app: Context) {
                 try { app.unregisterReceiver(batteryReceiver) } catch (e: Exception) { /* ignore */ }
                 batteryRegistered = false
             }
+            if (phoneRegistered) {
+                try { app.unregisterReceiver(phoneReceiver) } catch (e: Exception) { /* ignore */ }
+                phoneRegistered = false
+            }
+            main.removeCallbacks(habitTick)
             active = false
             generation++
             recognizer?.cancel()
@@ -265,7 +327,9 @@ class Assistant private constructor(private val app: Context) {
         }, 3000)
         Thread {
             val reply = try {
-                Extras.chain(hands, text) { brain.reply(it) } ?: Local.handle(hands, text) ?: brain.reply(text)
+                Extras.chain(hands, text) { brain.reply(it) }
+                    ?: Local.handle(hands, text)?.also { Habit.record(text) }
+                    ?: brain.reply(text)
             } catch (e: Exception) {
                 "सॉरी, कुछ गड़बड़ हो गई।"
             }
