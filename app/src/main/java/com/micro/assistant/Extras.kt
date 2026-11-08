@@ -76,6 +76,9 @@ object Extras {
         // ----- calls, SMS, OTP, navigation, habits -----
         Comms.handle(hands, t, words, raw)?.let { return it }
 
+        // ----- devices on the hotspot -----
+        Lan.handle(hands, t, words)?.let { return it }
+
         // ----- your own routines (made by voice) -----
         customRoutine(hands, t, words)?.let { return it }
 
