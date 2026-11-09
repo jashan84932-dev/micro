@@ -39,6 +39,7 @@ object Extras {
 
     /** Called first for every sentence: answers "haan bhejo" / "nahi" after a WhatsApp draft. */
     fun handlePending(hands: Hands, t: String, words: List<String>): String? {
+        Safety.handlePending(hands, t, words)?.let { return it }
         Pro.handlePending(hands, t, words)?.let { return it }
         Comms.handlePending(hands, t, words)?.let { return it }
         if (pendingWhatsApp == 0L) return null
@@ -75,6 +76,11 @@ object Extras {
         fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
 
         // ----- calls, SMS, OTP, navigation, habits -----
+        Stark.handle(hands, t, words, raw)?.let { return it }
+        Life.handle(hands, t, words, raw)?.let { return it }
+        Safety.handle(hands, t, words, raw)?.let { return it }
+        Plus.handle(hands, t, words, raw)?.let { return it }
+        Smart.handle(hands, t, words, raw)?.let { return it }
         Pro.handle(hands, t, words, raw)?.let { return it }
         Comms.handle(hands, t, words, raw)?.let { return it }
 

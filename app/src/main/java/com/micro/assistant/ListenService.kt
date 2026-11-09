@@ -21,6 +21,8 @@ class ListenService : Service() {
         private const val CHANNEL = "micro_listen"
         private const val NOTIF_ID = 77
         const val ACTION_STOP = "com.micro.assistant.STOP"
+        const val ACTION_FIND = "com.micro.assistant.FIND"
+        const val ACTION_FIND_STOP = "com.micro.assistant.FIND_STOP"
 
         fun start(ctx: Context) {
             ctx.startForegroundService(Intent(ctx, ListenService::class.java))
@@ -34,6 +36,39 @@ class ListenService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_FIND_STOP) {
+            FindMe.stop(this)
+            if (!Assistant.get(this).active) stopSelf()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_FIND) {
+            try {
+                goForeground()
+            } catch (e: Exception) {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            FindMe.ring(this)
+            val to = intent.getStringExtra("to")
+            if (to != null) {
+                val app = applicationContext
+                Thread {
+                    try {
+                        val l = Safety.fresh(app)
+                        val text = "Micro: your phone is ringing now. " + if (l != null) "Location: " + Safety.link(l) else "Location not found yet."
+                        val sm = android.telephony.SmsManager.getDefault()
+                        sm.sendMultipartTextMessage(to, null, sm.divideMessage(text), null, null)
+                    } catch (e: Exception) {
+                        // the ringing is the important part
+                    }
+                }.start()
+            }
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                FindMe.stop(this)
+                if (!Assistant.get(this).active) stopSelf()
+            }, 90_000)
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             Assistant.get(this).stopConversation()
             stopSelf()

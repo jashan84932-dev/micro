@@ -569,26 +569,31 @@ Current date and time: $now (India).
 
     companion object {
         /** One plain question to Gemini, no tools. Returns null when there is no key or no answer. */
-        fun quickText(prompt: String, maxTokens: Int = 200): String? {
+        fun quickText(prompt: String, maxTokens: Int = 200, search: Boolean = false): String? {
             if (Prefs.geminiKey.isBlank()) return null
-            for (model in listOf("gemini-2.5-flash-lite", "gemini-2.5-flash")) {
+            for (model in if (search) listOf("gemini-2.5-flash", "gemini-2.5-flash-lite") else listOf("gemini-2.5-flash-lite", "gemini-2.5-flash")) {
                 val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
                     .openConnection() as HttpURLConnection
                 try {
                     conn.requestMethod = "POST"
                     conn.connectTimeout = 8000
-                    conn.readTimeout = 12000
+                    conn.readTimeout = if (search) 25000 else 12000
                     conn.doOutput = true
                     conn.setRequestProperty("content-type", "application/json")
                     conn.setRequestProperty("x-goog-api-key", Prefs.geminiKey)
                     val body = JSONObject()
                         .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
                         .put("generationConfig", JSONObject().put("maxOutputTokens", maxTokens).put("thinkingConfig", JSONObject().put("thinkingBudget", 0)))
+                    if (search) body.put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
                     conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                     if (conn.responseCode !in 200..299) continue
                     val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                     val out = JSONObject(text).optJSONArray("candidates")?.optJSONObject(0)
-                        ?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text")
+                        ?.optJSONObject("content")?.optJSONArray("parts")?.let { ps ->
+                            val sb = StringBuilder()
+                            for (k in 0 until ps.length()) sb.append(ps.optJSONObject(k)?.optString("text", "") ?: "")
+                            sb.toString()
+                        }
                     if (!out.isNullOrBlank()) return out
                 } catch (e: Exception) {
                     // try next model

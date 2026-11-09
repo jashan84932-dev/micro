@@ -37,6 +37,11 @@ object Comms {
 
     private var pendingSms: Triple<String, String, String>? = null // name, number, text
     private var pendingSmsAt = 0L
+
+    internal fun stageSms(name: String, number: String, body: String) {
+        pendingSms = Triple(name, number, body)
+        pendingSmsAt = System.currentTimeMillis()
+    }
     private var pendingCallAt = 0L
     private var pendingHabit: String? = null
     private var pendingHabitAt = 0L

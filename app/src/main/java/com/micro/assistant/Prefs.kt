@@ -152,6 +152,55 @@ object Prefs {
     var faceDownQuiet: Boolean
         get() = flag("faceDownQuiet", true)
         set(v) = setFlag("faceDownQuiet", v)
+    var macros: String
+        get() = read("macros", "[]")
+        set(v) = write("macros", v)
+    var findCode: String
+        get() = read("findCode", "")
+        set(v) = write("findCode", v)
+    var emergency: String
+        get() = read("emergency", "[]")
+        set(v) = write("emergency", v)
+    var water: String
+        get() = read("water", "{}")
+        set(v) = write("water", v)
+    var stepBase: String
+        get() = read("stepBase", "")
+        set(v) = write("stepBase", v)
+    var autoStart: Boolean
+        get() = sp?.getBoolean("autoStart", false) ?: false
+        set(v) {
+            sp?.edit()?.putBoolean("autoStart", v)?.apply()
+        }
+    var events: String
+        get() = read("events", "[]")
+        set(v) = write("events", v)
+    var every: String
+        get() = read("every", "[]")
+        set(v) = write("every", v)
+    var budget: Int
+        get() = sp?.getInt("budget", 0) ?: 0
+        set(v) {
+            sp?.edit()?.putInt("budget", v)?.apply()
+        }
+    var budgetWarn: String
+        get() = read("budgetWarn", "")
+        set(v) = write("budgetWarn", v)
+    var weatherNag: String
+        get() = read("weatherNag", "")
+        set(v) = write("weatherNag", v)
+    var streaks: String
+        get() = read("streaks", "{}")
+        set(v) = write("streaks", v)
+    var ratings: String
+        get() = read("ratings", "{}")
+        set(v) = write("ratings", v)
+    var streakNag: String
+        get() = read("streakNag", "")
+        set(v) = write("streakNag", v)
+    var userFacts: String
+        get() = read("userFacts", "[]")
+        set(v) = write("userFacts", v)
     var diary: String
         get() = read("diary", "{}")
         set(v) = write("diary", v)

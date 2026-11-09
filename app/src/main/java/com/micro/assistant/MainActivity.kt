@@ -187,6 +187,7 @@ class MainActivity : Activity() {
         box.addView(option("Wake word: answer only after I say \"Hey Micro\"", Prefs.wakeWord) { Prefs.wakeWord = it })
         box.addView(option("Wake the screen when I say \"Hey Micro\" and the phone is asleep", Prefs.autoWake) { Prefs.autoWake = it })
         box.addView(option("Let me interrupt Micro by saying \"ruko\" / \"stop\"", Prefs.bargeIn) { Prefs.bargeIn = it })
+        box.addView(option("Start Micro automatically when the phone restarts", Prefs.autoStart) { Prefs.autoStart = it })
         box.addView(option("Clap twice to find my phone (Micro shouts \"I am here\")", Prefs.clapFind) { Prefs.clapFind = it })
         box.addView(option("Shake the phone twice to toggle the torch", Prefs.shakeTorch) { Prefs.shakeTorch = it })
         box.addView(option("Face down = Micro stays quiet and collects messages", Prefs.faceDownQuiet) { Prefs.faceDownQuiet = it })
@@ -294,7 +295,9 @@ class MainActivity : Activity() {
                 Manifest.permission.SEND_SMS,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.ANSWER_PHONE_CALLS,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                "android.permission.ACTIVITY_RECOGNITION",
+                "android.permission.RECEIVE_SMS"
             ),
             1
         )

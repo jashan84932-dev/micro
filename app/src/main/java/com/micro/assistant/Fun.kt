@@ -18,6 +18,9 @@ object Gestures {
 
     var onFlipUp: (() -> Unit)? = null
     var onFaceDown: (() -> Unit)? = null
+    /** A quick hand wave over the phone (close, then away again within a moment). */
+    var onWave: (() -> Unit)? = null
+    private var nearSince = 0L
 
     private var sm: SensorManager? = null
     private var accL: SensorEventListener? = null
@@ -87,8 +90,15 @@ object Gestures {
             val limit = Math.min(prox.maximumRange, 5f)
             val l = object : SensorEventListener {
                 override fun onSensorChanged(e: SensorEvent) {
+                    val wasNear = near
                     near = e.values[0] < limit
                     inPocket = near && lux < 8f
+                    val now = System.currentTimeMillis()
+                    if (near && !wasNear) nearSince = now
+                    if (!near && wasNear && nearSince != 0L && now - nearSince < 700) {
+                        nearSince = 0L
+                        onWave?.invoke()
+                    }
                 }
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
             }

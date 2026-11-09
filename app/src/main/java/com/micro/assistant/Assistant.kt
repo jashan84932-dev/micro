@@ -32,6 +32,11 @@ class Assistant private constructor(private val app: Context) {
             Jarvis.init(a)
             Fun.init(a)
             Pro.init(a)
+            Smart.init(a)
+            Plus.init(a)
+            Safety.init(a)
+            Life.init(a)
+            Stark.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 
@@ -69,6 +74,7 @@ class Assistant private constructor(private val app: Context) {
         private set
 
     private fun log(line: String) {
+        if (line.startsWith("${Prefs.friendName}: ")) Safety.lastSpoken = line.removePrefix("${Prefs.friendName}: ")
         transcript.append(line).append("\n\n")
         if (transcript.length > 20000) transcript.delete(0, transcript.length - 15000)
         onChange?.invoke()
@@ -128,6 +134,10 @@ class Assistant private constructor(private val app: Context) {
         override fun run() {
             if (!active) return
             try { Pro.tick() } catch (e: Exception) { /* rules are optional */ }
+            try { Plus.tick() } catch (e: Exception) { /* reminders are optional */ }
+            try { Safety.tick() } catch (e: Exception) { /* steps are optional */ }
+            try { Life.tick() } catch (e: Exception) { /* nudges are optional */ }
+            try { Stark.tick() } catch (e: Exception) { /* warnings are optional */ }
             if (mode == OrbView.LISTEN) {
                 val q = Comms.habitOffer()
                 if (q != null) {
@@ -249,6 +259,9 @@ class Assistant private constructor(private val app: Context) {
             Pro.stop(app)
             Pro.translateLang = null
             Pro.capKind = null
+            Smart.clear()
+            Plus.stopAll()
+            voice.overrideLang = null
             faceDownNotes.clear()
             announceQueue.clear()
             active = false
@@ -401,6 +414,7 @@ class Assistant private constructor(private val app: Context) {
         val base = mutableListOf("micro", "maikro", "mikro", "mykro", "माइक्रो", "मायक्रो", "माईक्रो", "मैक्रो", "माइको", "माइकरो")
         val n = Prefs.friendName.trim().lowercase(Locale.getDefault())
         if (n.length >= 3 && n !in base) base.add(n)
+        if (Prefs.jarvisMode) base.addAll(listOf("jarvis", "jarwis", "javis", "जार्विस", "जार्विश", "जारविस", "जर्विस"))
         return base
     }
 
@@ -516,9 +530,13 @@ class Assistant private constructor(private val app: Context) {
         }, 3000)
         Thread {
             val reply = try {
-                Extras.chain(hands, text) { brain.reply(it) }
-                    ?: Local.handle(hands, text)?.also { Habit.record(text) }
-                    ?: brain.reply(text)
+                if (Smart.persona != null && !Smart.modeCommand(text)) {
+                    brain.reply(Smart.wrap(text))
+                } else {
+                    Extras.chain(hands, text) { brain.reply(it) }
+                        ?: Local.handle(hands, text)?.also { Habit.record(text) }
+                        ?: brain.reply(text)
+                }
             } catch (e: Exception) {
                 "सॉरी, कुछ गड़बड़ हो गई।"
             }
@@ -532,6 +550,7 @@ class Assistant private constructor(private val app: Context) {
     }
 
     private fun speakThenListen(reply: String) {
+        voice.overrideLang = Smart.speakLang()
         if (Gestures.quiet()) {
             // phone is face down: do not talk, just keep listening
             awakeUntil = System.currentTimeMillis() + 25_000
@@ -559,8 +578,12 @@ class Assistant private constructor(private val app: Context) {
         Thread {
             val doc = Pro.docMode
             Pro.docMode = false
+            val cam = Plus.camPrompt
+            Plus.camPrompt = null
             val reply = try {
-                if (doc) Pro.docReply(brain.describeImage(jpegBase64, Pro.DOC_PROMPT)) else brain.describeImage(jpegBase64)
+                if (doc) Pro.docReply(brain.describeImage(jpegBase64, Pro.DOC_PROMPT))
+                else if (cam != null) brain.describeImage(jpegBase64, cam)
+                else brain.describeImage(jpegBase64)
             } catch (e: Exception) {
                 "फोटो नहीं देख पाया।"
             }

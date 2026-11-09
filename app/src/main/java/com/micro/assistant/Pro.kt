@@ -136,7 +136,7 @@ object Pro {
         Prefs.meetings = keep.toString()
     }
 
-    private fun lastMeeting(): String? {
+    internal fun lastMeeting(): String? {
         val a = try { JSONArray(Prefs.meetings) } catch (e: Exception) { return null }
         if (a.length() == 0) return null
         return a.getJSONObject(a.length() - 1).optString("s")
