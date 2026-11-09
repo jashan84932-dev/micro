@@ -297,7 +297,8 @@ class MainActivity : Activity() {
                 Manifest.permission.ANSWER_PHONE_CALLS,
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 "android.permission.ACTIVITY_RECOGNITION",
-                "android.permission.RECEIVE_SMS"
+                "android.permission.RECEIVE_SMS",
+                Manifest.permission.CAMERA
             ),
             1
         )

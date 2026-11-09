@@ -157,6 +157,9 @@ object Stark {
         val ctx = appCtx ?: return null
         fun any(vararg w: String) = w.any { t.contains(s(it)) }
 
+        if (any("gesture", "जेस्चर", "इशारे", "ishare", "haath se chala", "हाथ से चला", "air mouse", "एयर माउस", "air control", "एयर कंट्रोल", "hand control", "हैंड कंट्रोल")) {
+            return if (any("band", "बंद", "stop", "off", "khatam", "खत्म")) AirControl.stop() else AirControl.start(ctx, hands)
+        }
         if (any("hud", "एचयूडी", "एच यू डी", "heads up", "हेड्स अप", "arc reactor", "आर्क रिएक्टर", "holo screen", "होलो स्क्रीन")) {
             return try {
                 hands.openActivity(Intent(ctx, HudActivity::class.java))

@@ -256,6 +256,7 @@ class Assistant private constructor(private val app: Context) {
             main.removeCallbacks(habitTick)
             main.removeCallbacks(drainTick)
             Gestures.stop()
+            AirControl.stop()
             Pro.stop(app)
             Pro.translateLang = null
             Pro.capKind = null
