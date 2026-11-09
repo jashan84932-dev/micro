@@ -31,6 +31,7 @@ class Assistant private constructor(private val app: Context) {
             Daily.init(a)
             Jarvis.init(a)
             Fun.init(a)
+            Pro.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 
@@ -126,6 +127,7 @@ class Assistant private constructor(private val app: Context) {
     private val habitTick = object : Runnable {
         override fun run() {
             if (!active) return
+            try { Pro.tick() } catch (e: Exception) { /* rules are optional */ }
             if (mode == OrbView.LISTEN) {
                 val q = Comms.habitOffer()
                 if (q != null) {
@@ -221,6 +223,7 @@ class Assistant private constructor(private val app: Context) {
                 }
             }
             Gestures.start(app, hands)
+            Pro.start(app, hands)
             active = true
             failures = 0
             awakeUntil = System.currentTimeMillis() + 30_000
@@ -243,6 +246,9 @@ class Assistant private constructor(private val app: Context) {
             main.removeCallbacks(habitTick)
             main.removeCallbacks(drainTick)
             Gestures.stop()
+            Pro.stop(app)
+            Pro.translateLang = null
+            Pro.capKind = null
             faceDownNotes.clear()
             announceQueue.clear()
             active = false
@@ -398,7 +404,70 @@ class Assistant private constructor(private val app: Context) {
         return base
     }
 
+    private fun translateTurn(text: String) {
+        val gen = ++generation
+        state("Thinking…", OrbView.THINK)
+        Thread {
+            val r = try { Pro.translate(text) } catch (e: Exception) { null }
+            main.post {
+                if (gen != generation) return@post
+                if (r == null) {
+                    log("${Prefs.friendName}: (अनुवाद नहीं हो पाया)")
+                    awakeUntil = System.currentTimeMillis() + 60_000
+                    relisten(200)
+                    return@post
+                }
+                log("${Prefs.friendName}: ${r.second}")
+                state("Speaking…", OrbView.SPEAK)
+                voice.overrideLang = r.first
+                voice.speak(r.second) {
+                    voice.overrideLang = null
+                    awakeUntil = System.currentTimeMillis() + 60_000
+                    if (active) listen() else state("Ready", OrbView.IDLE)
+                }
+            }
+        }.start()
+    }
+
+    private fun endCapture() {
+        val gen = ++generation
+        state("Thinking…", OrbView.THINK)
+        Thread {
+            val r = try { Pro.finishCapture() } catch (e: Exception) { "सेव नहीं कर पाया।" }
+            main.post {
+                if (gen != generation) return@post
+                log("${Prefs.friendName}: $r")
+                state("Speaking…", OrbView.SPEAK)
+                speakThenListen(r)
+            }
+        }.start()
+    }
+
     private fun heard(heardText: String) {
+        // translator and meeting / diary modes take every sentence, no wake word needed
+        if (Pro.translateLang != null) {
+            awakeUntil = System.currentTimeMillis() + 60_000
+            if (Pro.stopRequested(heardText)) {
+                Pro.translateLang = null
+                log("${Prefs.friendName}: अनुवादक बंद।")
+                state("Speaking…", OrbView.SPEAK)
+                speakThenListen("अनुवादक बंद।")
+            } else {
+                log("You: $heardText")
+                translateTurn(heardText)
+            }
+            return
+        }
+        if (Pro.capturing()) {
+            awakeUntil = System.currentTimeMillis() + 60_000
+            if (Pro.stopRequested(heardText)) {
+                endCapture()
+            } else {
+                Pro.record(heardText)
+                relisten(100)
+            }
+            return
+        }
         var text = heardText
         if (Prefs.wakeWord && System.currentTimeMillis() > awakeUntil) {
             val low = text.lowercase(Locale.getDefault())
@@ -488,7 +557,13 @@ class Assistant private constructor(private val app: Context) {
         }
         val gen = generation
         Thread {
-            val reply = try { brain.describeImage(jpegBase64) } catch (e: Exception) { "फोटो नहीं देख पाया।" }
+            val doc = Pro.docMode
+            Pro.docMode = false
+            val reply = try {
+                if (doc) Pro.docReply(brain.describeImage(jpegBase64, Pro.DOC_PROMPT)) else brain.describeImage(jpegBase64)
+            } catch (e: Exception) {
+                "फोटो नहीं देख पाया।"
+            }
             main.post {
                 if (gen != generation) return@post
                 log("${Prefs.friendName}: $reply")

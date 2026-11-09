@@ -7,7 +7,10 @@ import android.service.notification.StatusBarNotification
 /** Keeps the latest notifications in memory (never saved or sent anywhere) so Micro can read them out. */
 class NotifService : NotificationListenerService() {
 
+    class LastMsg(val pkg: String, val app: String, val title: String, val text: String, val action: Notification.Action?, val at: Long)
+
     companion object {
+        @Volatile var last: LastMsg? = null
         val recent = ArrayList<String>()
         private val MSG_APPS = setOf(
             "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "com.facebook.orca",
@@ -38,6 +41,10 @@ class NotifService : NotificationListenerService() {
         if ((Prefs.readAloud || Gestures.pocketActive()) && (n.category == Notification.CATEGORY_MESSAGE || s.packageName in MSG_APPS)) {
             val say = (if (title.isBlank()) "$app पर नया मैसेज: $text" else "$app पर $title: $text").take(170)
             Assistant.get(applicationContext).announce(say)
+        }
+        if (n.category == Notification.CATEGORY_MESSAGE || s.packageName in MSG_APPS) {
+            val act = n.actions?.firstOrNull { it.remoteInputs != null && it.remoteInputs.isNotEmpty() }
+            if (act != null) last = LastMsg(s.packageName, app, title, text, act, System.currentTimeMillis())
         }
         synchronized(recent) {
             recent.add("$app: $title $text".trim())

@@ -161,10 +161,10 @@ class Brain(private val hands: Hands) {
     }
 
     /** Sends a photo to Gemini and returns a short spoken description. */
-    fun describeImage(jpegBase64: String): String {
+    fun describeImage(jpegBase64: String, prompt: String = "इस फोटो में क्या है? हिंदी (थोड़ी English मिलाकर) में 2-3 छोटे वाक्यों में बताओ, जैसे दोस्त को बता रहे हो।"): String {
         if (Prefs.geminiKey.isBlank()) return "फोटो देखने के लिए Gemini key चाहिए।"
         val parts = JSONArray()
-            .put(JSONObject().put("text", "इस फोटो में क्या है? हिंदी (थोड़ी English मिलाकर) में 2-3 छोटे वाक्यों में बताओ, जैसे दोस्त को बता रहे हो।"))
+            .put(JSONObject().put("text", prompt))
             .put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", jpegBase64)))
         val body = JSONObject()
             .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", parts)))
@@ -569,7 +569,7 @@ Current date and time: $now (India).
 
     companion object {
         /** One plain question to Gemini, no tools. Returns null when there is no key or no answer. */
-        fun quickText(prompt: String): String? {
+        fun quickText(prompt: String, maxTokens: Int = 200): String? {
             if (Prefs.geminiKey.isBlank()) return null
             for (model in listOf("gemini-2.5-flash-lite", "gemini-2.5-flash")) {
                 val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
@@ -583,7 +583,7 @@ Current date and time: $now (India).
                     conn.setRequestProperty("x-goog-api-key", Prefs.geminiKey)
                     val body = JSONObject()
                         .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
-                        .put("generationConfig", JSONObject().put("maxOutputTokens", 200).put("thinkingConfig", JSONObject().put("thinkingBudget", 0)))
+                        .put("generationConfig", JSONObject().put("maxOutputTokens", maxTokens).put("thinkingConfig", JSONObject().put("thinkingBudget", 0)))
                     conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                     if (conn.responseCode !in 200..299) continue
                     val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }

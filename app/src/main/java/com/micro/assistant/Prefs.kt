@@ -152,6 +152,18 @@ object Prefs {
     var faceDownQuiet: Boolean
         get() = flag("faceDownQuiet", true)
         set(v) = setFlag("faceDownQuiet", v)
+    var diary: String
+        get() = read("diary", "{}")
+        set(v) = write("diary", v)
+    var meetings: String
+        get() = read("meetings", "[]")
+        set(v) = write("meetings", v)
+    var rules: String
+        get() = read("rules", "[]")
+        set(v) = write("rules", v)
+    var homeSsid: String
+        get() = read("homeSsid", "")
+        set(v) = write("homeSsid", v)
     var fakeCaller: String
         get() = read("fakeCaller", "Mummy")
         set(v) = write("fakeCaller", v)

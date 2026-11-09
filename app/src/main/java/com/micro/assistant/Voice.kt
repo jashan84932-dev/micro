@@ -28,6 +28,8 @@ class Voice(private val ctx: Context) {
     private var player: MediaPlayer? = null
     private var onDone: (() -> Unit)? = null
     private var token = 0
+    /** Language tag used by the built-in voice for the next sentences (translator). Null = Hindi. */
+    @Volatile var overrideLang: String? = null
 
     init {
         tts = TextToSpeech(ctx) { status ->
@@ -57,7 +59,7 @@ class Voice(private val ctx: Context) {
             val my = ++token
             onDone = done
             val clean = text.take(1500)
-            if (Prefs.customVoice && Prefs.voiceKey.isNotBlank() && Prefs.voiceId.isNotBlank()) {
+            if (overrideLang == null && Prefs.customVoice && Prefs.voiceKey.isNotBlank() && Prefs.voiceId.isNotBlank()) {
                 Thread {
                     val file = fetchCustom(clean)
                     main.post {
@@ -108,6 +110,7 @@ class Voice(private val ctx: Context) {
             val cb = onDone; onDone = null; cb?.invoke()
             return
         }
+        try { tts?.language = Locale.forLanguageTag(overrideLang ?: "hi-IN") } catch (e: Exception) { /* keep current */ }
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, my.toString())
     }
 
