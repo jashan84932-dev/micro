@@ -24,7 +24,7 @@ class ReportActivity : Activity() {
 
     private class ChartView(ctx: Context, val title: String, val labels: List<String>, val values: List<Int>) : View(ctx) {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val colors = intArrayOf("#FFC107", "#FF9800", "#FFB74D", "#FFD54F", "#FFE082", "#FFCA28").map { Color.parseColor(it) }
+        private val colors = listOf("#FFC107", "#FF9800", "#FFB74D", "#FFD54F", "#FFE082", "#FFCA28").map { Color.parseColor(it) }
 
         override fun onDraw(c: Canvas) {
             c.drawColor(Color.parseColor("#0B0F14"))
