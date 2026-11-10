@@ -28,6 +28,7 @@ android {
 
 dependencies {
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 
 val handModel = layout.projectDirectory.file("src/main/assets/hand_landmarker.task").asFile
