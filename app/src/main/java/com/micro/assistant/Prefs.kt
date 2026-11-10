@@ -158,6 +158,9 @@ object Prefs {
     var findCode: String
         get() = read("findCode", "")
         set(v) = write("findCode", v)
+    var personas: String
+        get() = read("personas", "{}")
+        set(v) = write("personas", v)
     var liveModel: String
         get() = read("liveModel", "gemini-3.8-live").ifBlank { "gemini-3.8-live" }
         set(v) = write("liveModel", v.trim())

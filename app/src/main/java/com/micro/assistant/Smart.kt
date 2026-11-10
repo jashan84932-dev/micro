@@ -44,6 +44,26 @@ object Smart {
         return m && stop
     }
 
+    private fun startCustom(who: String): String {
+        val saved = try { JSONObject(Prefs.personas) } catch (e: Exception) { JSONObject() }
+        val key = who.lowercase()
+        var p = saved.optString(key, "")
+        if (p.isBlank()) {
+            p = Brain.quickText(
+                "Write instructions (6 to 8 sentences, in English) telling a voice assistant how to talk in the style of \"$who\": " +
+                    "their attitude, humour, vocabulary, typical way of addressing the user, and how short the replies should be. " +
+                    "Spoken replies must be 1 to 3 short sentences, mix Hindi and English (Hinglish) the way an Indian friend would, and never be hurtful. " +
+                    "Capture the style and attitude only; do not quote copyrighted lines or dialogue. Output only the instructions.",
+                450
+            ) ?: return "पर्सनैलिटी बनाने के लिए इंटरनेट और Gemini key चाहिए।"
+            saved.put(key, p.trim())
+            // keep at most 15
+            while (saved.length() > 15) saved.remove(saved.keys().next())
+            Prefs.personas = saved.toString()
+        }
+        return startMode("custom:$who", "इस शैली में बात करो (यह सिर्फ़ बोलने का अंदाज़ है, काम और सच्चाई में कोई बदलाव नहीं): $p", "ठीक है, अब मैं $who के अंदाज़ में बात करूँगा।")
+    }
+
     private fun startMode(name: String, p: String, intro: String): String {
         persona = p
         personaName = name
@@ -173,6 +193,25 @@ object Smart {
         if (persona != null && modeCommand(raw)) {
             clear()
             return "ठीक है, मोड बंद। अब नॉर्मल बात करते हैं।"
+        }
+
+        // custom personality: "tum Tony Stark ban jao", "Sherlock jaisa baat karo", "personality Yoda"
+        if (persona != null && personaName.startsWith("custom:") &&
+            any("normal ho jao", "नॉर्मल हो जाओ", "apni personality", "अपनी पर्सनैलिटी", "personality band", "पर्सनैलिटी बंद", "asli roop", "असली रूप")) {
+            clear()
+            return "ठीक है, अब मैं अपने असली रूप में हूँ।"
+        }
+        if (any("personality list", "पर्सनैलिटी लिस्ट", "kaun kaun si personality", "कौन कौन सी पर्सनैलिटी")) {
+            val keys = try { JSONObject(Prefs.personas).keys().asSequence().toList() } catch (e: Exception) { emptyList<String>() }
+            return if (keys.isEmpty()) "अभी कोई सेव्ड पर्सनैलिटी नहीं है। बोलो, तुम टोनी स्टार्क बन जाओ।" else "सेव्ड पर्सनैलिटी: " + keys.joinToString(", ")
+        }
+        val pm = Regex("(.+?)\\s+(?:ban jao|ban jaao|बन जाओ|बन जाइए|jaisa baat karo|jaise baat karo|जैसा बात करो|जैसे बात करो|jaisa bolo|jaise bolo|जैसे बोलो|जैसा बोलो|ki tarah baat karo|की तरह बात करो)")
+            .find(raw.trim()) ?: Regex("(?:personality|पर्सनैलिटी|पर्सनालिटी)\\s+(.+)", RegexOption.IGNORE_CASE).find(raw.trim())
+        if (pm != null) {
+            var who = pm.groupValues[1]
+            val junk = setOf("micro", "माइक्रो", "tum", "तुम", "aap", "आप", "ab", "अब", "ek", "एक", "mere", "मेरे", "liye", "लिए", "hey", "ok", "okay", "please", "ab", "se", "से", "ki", "की", "ka", "का", "jaisa", "jaise", "जैसा", "जैसे", "set", "karo", "करो", "badlo", "बदलो", "meri", "मेरी")
+            who = who.split(Regex("\\s+")).filter { it.lowercase() !in junk }.joinToString(" ").trim(' ', ',', '.')
+            if (who.length in 2..40) return startCustom(who)
         }
 
         // practice modes

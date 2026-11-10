@@ -188,6 +188,7 @@ object Live {
         if (Prefs.jarvisMode) persona.append("Address the user as sir. ")
         persona.append("You can control the phone with tools: use phone_command for simple things (open an app, call someone, flashlight, volume, alarm, timer, WhatsApp message, music), ")
         persona.append("and agent_task for multi-step jobs inside apps (ordering food, searching in an app). Say a short line before using a tool. ")
+        Smart.persona?.let { persona.append("Speaking style: ").append(it).append(" ") }
         persona.append("Never claim you did something unless the tool result says so. When the user says goodbye or wants to stop, call end_live.")
         val fn = JSONArray()
             .put(decl("phone_command", "Run a phone command exactly as the user would say it, e.g. 'torch on', 'mummy ko call karo', 'volume badhao'.", "command", "The command in Hindi or English"))
