@@ -37,6 +37,8 @@ class Assistant private constructor(private val app: Context) {
             Safety.init(a)
             Life.init(a)
             Stark.init(a)
+            Agent.init(a)
+            Live.init(a)
             return inst ?: synchronized(this) { inst ?: Assistant(a).also { inst = it } }
         }
 
@@ -72,6 +74,29 @@ class Assistant private constructor(private val app: Context) {
     var onChange: (() -> Unit)? = null // called on the main thread
     var status = "Ready"
         private set
+
+    /** Live mode / agent put their lines into the same transcript. */
+    fun note(line: String) = main.post { log(line) }
+
+    @Volatile var liveActive = false
+
+    /** Live voice mode owns the microphone while it runs; the normal listener steps aside. */
+    fun setLive(on: Boolean) {
+        main.post {
+            liveActive = on
+            if (on) {
+                generation++
+                recognizer?.cancel()
+                stopBarge()
+                voice.stop()
+                state("Live…", OrbView.SPEAK)
+            } else if (active) {
+                relisten(600)
+            } else {
+                state("Ready", OrbView.IDLE)
+            }
+        }
+    }
 
     private fun log(line: String) {
         if (line.startsWith("${Prefs.friendName}: ")) Safety.lastSpoken = line.removePrefix("${Prefs.friendName}: ")
@@ -257,6 +282,8 @@ class Assistant private constructor(private val app: Context) {
             main.removeCallbacks(drainTick)
             Gestures.stop()
             AirControl.stop()
+            Live.stop()
+            Agent.cancel()
             Pro.stop(app)
             Pro.translateLang = null
             Pro.capKind = null
@@ -281,7 +308,7 @@ class Assistant private constructor(private val app: Context) {
     // ---------- Listening ----------
 
     private fun listen() {
-        if (!active) return
+        if (!active || liveActive) return
         if (app.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             log("Please allow the microphone first.")
             stopConversation()
@@ -603,7 +630,7 @@ class Assistant private constructor(private val app: Context) {
     private val STOP_WORDS = setOf("रुको", "रुक", "ruko", "ruk", "चुप", "chup", "stop", "बस", "bas", "ठहरो", "thehro", "रुकिए")
 
     private fun startBarge(gen: Int) {
-        if (!Prefs.bargeIn || !active) return
+        if (!Prefs.bargeIn || !active || liveActive) return
         main.post {
             if (!active || gen != generation) return@post
             try {

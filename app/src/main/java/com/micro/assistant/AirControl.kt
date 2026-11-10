@@ -23,6 +23,9 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityNodeInfo
+import android.graphics.Rect
+import android.graphics.RectF
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -76,19 +79,36 @@ object AirControl {
     private var lastPoseAction = 0L
     private val palm = ArrayList<DoubleArray>() // t, x, y
     private var lastSwipeAt = 0L
+    private var pinchRefX = 0f
+    private var pinchRefY = 0f
+    private var pinchBaseX = 0f
+    private var pinchBaseY = 0f
+    private var dwellX = -1000f
+    private var dwellY = -1000f
+    private var dwellSince = 0L
+    private var lastDwellTap = 0L
 
     private class CursorView(ctx: Context) : View(ctx) {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         var down = false
+        var progress = 0f
         override fun onDraw(c: Canvas) {
             val r = width / 2f
             p.style = Paint.Style.FILL
             p.color = if (down) Color.parseColor("#9900E676") else Color.parseColor("#6600E5FF")
-            c.drawCircle(r, r, r - 4f, p)
+            c.drawCircle(r, r, r - 6f, p)
             p.style = Paint.Style.STROKE
-            p.strokeWidth = 4f
+            p.strokeWidth = 6f
             p.color = if (down) Color.parseColor("#00E676") else Color.parseColor("#00E5FF")
-            c.drawCircle(r, r, r - 4f, p)
+            c.drawCircle(r, r, r - 6f, p)
+            if (progress > 0f) {
+                p.strokeWidth = 10f
+                p.color = Color.parseColor("#FFB300")
+                c.drawArc(RectF(5f, 5f, width - 5f, height - 5f), -90f, 360f * progress, false, p)
+            }
+            p.strokeWidth = 3f
+            p.color = Color.WHITE
+            c.drawCircle(r, r, 5f, p)
         }
     }
 
@@ -127,7 +147,7 @@ object AirControl {
                 cleanup()
             }
         }.start()
-        return "हाथ के इशारे चालू। एक उँगली से कर्सर हिलाओ, उँगली और अँगूठे को जोड़कर टैप करो, खुली हथेली से स्वाइप करो। बंद करने के लिए बोलो, हाथ के इशारे बंद।"
+        return "हाथ के इशारे चालू। एक उँगली से कर्सर हिलाओ। किसी बटन पर कर्सर को एक सेकंड रोको, नारंगी घेरा भरते ही टैप हो जाएगा। या उँगली और अँगूठे को जोड़कर भी टैप कर सकते हो। खुली हथेली से स्वाइप करो। बंद करने के लिए बोलो, हाथ के इशारे बंद।"
     }
 
     fun stop(): String {
@@ -177,7 +197,7 @@ object AirControl {
             wm = w
             val v = CursorView(ctx)
             val lp = WindowManager.LayoutParams(
-                84, 84,
+                120, 120,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
@@ -193,13 +213,14 @@ object AirControl {
         }
     }
 
-    private fun moveCursor(x: Float, y: Float, down: Boolean) {
+    private fun moveCursor(x: Float, y: Float, down: Boolean, progress: Float = 0f) {
         main.post {
             val v = cursor ?: return@post
             val lp = cursorParams ?: return@post
-            lp.x = (x - 42).toInt()
-            lp.y = (y - 42).toInt()
+            lp.x = (x - 60).toInt()
+            lp.y = (y - 60).toInt()
             v.down = down
+            v.progress = progress
             try {
                 wm?.updateViewLayout(v, lp)
                 v.invalidate()
@@ -318,7 +339,7 @@ object AirControl {
     private fun onFrame(app: Context, hands: Hands, rd: ImageReader) {
         val img = try { rd.acquireLatestImage() } catch (e: Exception) { null } ?: return
         val now = System.currentTimeMillis()
-        if (!running || now - lastFrame < 90) {
+        if (!running || now - lastFrame < 60) {
             img.close()
             return
         }
@@ -352,6 +373,40 @@ object AirControl {
 
     private fun dist(ax: Float, ay: Float, bx: Float, by: Float) = Math.hypot((ax - bx).toDouble(), (ay - by).toDouble()).toFloat()
 
+    /** Finds the real button under (or near) the cursor so that small buttons are easy to hit. */
+    private fun snap(hands: Hands, x: Int, y: Int): IntArray {
+        val root = try { hands.service?.rootInActiveWindow } catch (e: Exception) { null } ?: return intArrayOf(x, y)
+        val r = Rect()
+        var bestScore = Float.MAX_VALUE
+        var bx = x
+        var by = y
+        val limit = screenW.toLong() * screenH * 0.25
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > 30) return
+            if (n.isClickable && n.isVisibleToUser) {
+                n.getBoundsInScreen(r)
+                if (r.width() > 0 && r.height() > 0) {
+                    val area = r.width().toLong() * r.height()
+                    if (area < limit) {
+                        val inside = r.contains(x, y)
+                        val d = dist(x.toFloat(), y.toFloat(), r.centerX().toFloat(), r.centerY().toFloat())
+                        if (inside || d < 110f) {
+                            val score = if (inside) area.toFloat() else 1e12f + d
+                            if (score < bestScore) {
+                                bestScore = score
+                                bx = r.centerX()
+                                by = r.centerY()
+                            }
+                        }
+                    }
+                }
+            }
+            for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
+        }
+        try { walk(root, 0) } catch (e: Exception) { /* use the plain point */ }
+        return intArrayOf(bx, by)
+    }
+
     private fun process(hands: Hands, x: FloatArray, y: FloatArray, now: Long) {
         val size = dist(x[0], y[0], x[9], y[9]).coerceAtLeast(0.01f)
         fun ext(tip: Int, pip: Int) = y[tip] < y[pip] - 0.02f
@@ -359,24 +414,44 @@ object AirControl {
         val mid = ext(12, 10)
         val ring = ext(16, 14)
         val pinky = ext(20, 18)
-        val pinch = dist(x[4], y[4], x[8], y[8]) < 0.32f * size
+        // pinch with a safety gap: it starts when close, and only ends when clearly apart again
+        val pinchRatio = dist(x[4], y[4], x[8], y[8]) / size
+        val pinch = if (pinching) pinchRatio < 0.5f else pinchRatio < 0.3f
 
-        // where the finger points, mapped from the middle of the camera view to the whole screen
-        val fx = if (pinch) (x[4] + x[8]) / 2 else x[8]
-        val fy = if (pinch) (y[4] + y[8]) / 2 else y[8]
-        val tx = (((fx - 0.15f) / 0.7f).coerceIn(0f, 1f)) * screenW
-        val ty = (((fy - 0.10f) / 0.6f).coerceIn(0f, 1f)) * screenH
+        // the middle part of the camera view covers the whole screen, so small hand moves are enough
+        val tx: Float
+        val ty: Float
+        if (pinch) {
+            val mx = (x[4] + x[8]) / 2
+            val my = (y[4] + y[8]) / 2
+            if (!pinching) {
+                pinchRefX = mx
+                pinchRefY = my
+                pinchBaseX = if (sx < 0) screenW / 2f else sx
+                pinchBaseY = if (sy < 0) screenH / 2f else sy
+            }
+            // while pinching the cursor moves only by how far the hand moved, so it does not jump
+            tx = (pinchBaseX + (mx - pinchRefX) / 0.5f * screenW).coerceIn(0f, screenW.toFloat())
+            ty = (pinchBaseY + (my - pinchRefY) / 0.5f * screenH).coerceIn(0f, screenH.toFloat())
+        } else {
+            tx = (((x[8] - 0.25f) / 0.5f).coerceIn(0f, 1f)) * screenW
+            ty = (((y[8] - 0.20f) / 0.5f).coerceIn(0f, 1f)) * screenH
+        }
         if (sx < 0) {
             sx = tx
             sy = ty
         } else {
-            sx += (tx - sx) * 0.5f
-            sy += (ty - sy) * 0.5f
+            // slow hand = very steady cursor, fast hand = quick cursor
+            val step = dist(tx, ty, sx, sy) / screenW
+            val a = (0.12f + step * 5f).coerceIn(0.12f, 0.75f)
+            sx += (tx - sx) * a
+            sy += (ty - sy) * a
         }
 
         val palmOpen = idx && mid && ring && pinky
         val fist = !idx && !mid && !ring && !pinky && !pinch
         val peace = idx && mid && !ring && !pinky
+        val pointing = idx && !mid && !ring && !pinky
 
         // pinch = tap, swipe or long press
         if (pinch) {
@@ -388,9 +463,8 @@ object AirControl {
                 longPressed = false
             } else if (!longPressed && now - pinchStartAt > 900 && dist(sx, sy, pinchStartX, pinchStartY) < 40f) {
                 longPressed = true
-                val px = pinchStartX.toInt()
-                val py = pinchStartY.toInt()
-                act { hands.swipe(px, py, px + 1, py, 900) }
+                val p = snap(hands, pinchStartX.toInt(), pinchStartY.toInt())
+                act { hands.swipe(p[0], p[1], p[0] + 1, p[1], 900) }
             }
             moveCursor(sx, sy, true)
             return
@@ -402,11 +476,44 @@ object AirControl {
             val exI = sx.toInt()
             val eyI = sy.toInt()
             if (!longPressed) {
-                if (moved < 90f) act { hands.tap(exI, eyI) } else act { hands.swipe(sxI, syI, exI, eyI, 300) }
+                if (moved < 90f) {
+                    act {
+                        val p = snap(hands, sxI, syI)
+                        hands.tap(p[0], p[1])
+                    }
+                } else {
+                    act { hands.swipe(sxI, syI, exI, eyI, 300) }
+                }
             }
+            dwellX = -1000f
         }
 
-        moveCursor(sx, sy, false)
+        // dwell click: point at something and hold still, the orange ring fills, then it taps
+        var progress = 0f
+        if (Prefs.airDwell && pointing) {
+            if (dist(sx, sy, dwellX, dwellY) > 45f) {
+                dwellX = sx
+                dwellY = sy
+                dwellSince = now
+            } else if (now - lastDwellTap > 1500) {
+                progress = ((now - dwellSince) / 1100f).coerceIn(0f, 1f)
+                if (progress >= 1f) {
+                    lastDwellTap = now
+                    dwellSince = now
+                    progress = 0f
+                    val tapX = dwellX.toInt()
+                    val tapY = dwellY.toInt()
+                    act {
+                        val p = snap(hands, tapX, tapY)
+                        hands.tap(p[0], p[1])
+                    }
+                }
+            }
+        } else {
+            dwellX = -1000f
+        }
+
+        moveCursor(sx, sy, false, progress)
 
         // open palm moving fast = swipe the screen
         if (palmOpen) {
@@ -417,13 +524,13 @@ object AirControl {
                 val dy = (palm.last()[2] - palm[0][2]).toFloat()
                 val w = screenW
                 val h = screenH
-                if (Math.abs(dy) > 0.16f && Math.abs(dy) > Math.abs(dx)) {
+                if (Math.abs(dy) > 0.14f && Math.abs(dy) > Math.abs(dx)) {
                     lastSwipeAt = now
                     palm.clear()
                     // hand moves up = content moves up
                     if (dy < 0) act { hands.swipe(w / 2, (h * 0.7f).toInt(), w / 2, (h * 0.3f).toInt(), 250) }
                     else act { hands.swipe(w / 2, (h * 0.3f).toInt(), w / 2, (h * 0.7f).toInt(), 250) }
-                } else if (Math.abs(dx) > 0.2f && Math.abs(dx) > Math.abs(dy)) {
+                } else if (Math.abs(dx) > 0.18f && Math.abs(dx) > Math.abs(dy)) {
                     lastSwipeAt = now
                     palm.clear()
                     if (dx > 0) act { hands.swipe((w * 0.25f).toInt(), h / 2, (w * 0.75f).toInt(), h / 2, 250) }

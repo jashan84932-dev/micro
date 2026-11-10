@@ -39,6 +39,7 @@ object Extras {
 
     /** Called first for every sentence: answers "haan bhejo" / "nahi" after a WhatsApp draft. */
     fun handlePending(hands: Hands, t: String, words: List<String>): String? {
+        Agent.handlePending(t, words)?.let { return it }
         Safety.handlePending(hands, t, words)?.let { return it }
         Pro.handlePending(hands, t, words)?.let { return it }
         Comms.handlePending(hands, t, words)?.let { return it }
@@ -76,6 +77,8 @@ object Extras {
         fun word(vararg w: String) = w.any { x -> words.contains(strip(x)) }
 
         // ----- calls, SMS, OTP, navigation, habits -----
+        Agent.handle(hands, t, words, raw)?.let { return it }
+        Live.handle(hands, t, words, raw)?.let { return it }
         Stark.handle(hands, t, words, raw)?.let { return it }
         Life.handle(hands, t, words, raw)?.let { return it }
         Safety.handle(hands, t, words, raw)?.let { return it }

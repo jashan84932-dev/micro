@@ -158,6 +158,14 @@ object Prefs {
     var findCode: String
         get() = read("findCode", "")
         set(v) = write("findCode", v)
+    var liveModel: String
+        get() = read("liveModel", "gemini-3.8-live").ifBlank { "gemini-3.8-live" }
+        set(v) = write("liveModel", v.trim())
+    var airDwell: Boolean
+        get() = sp?.getBoolean("airDwell", true) ?: true
+        set(v) {
+            sp?.edit()?.putBoolean("airDwell", v)?.apply()
+        }
     var emergency: String
         get() = read("emergency", "[]")
         set(v) = write("emergency", v)

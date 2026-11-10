@@ -157,6 +157,11 @@ object Stark {
         val ctx = appCtx ?: return null
         fun any(vararg w: String) = w.any { t.contains(s(it)) }
 
+        if (any("dwell", "ड्वेल", "ruk kar tap", "रुककर टैप", "auto tap", "ऑटो टैप")) {
+            val off = any("band", "बंद", "off", "stop")
+            Prefs.airDwell = !off
+            return if (off) "रुककर टैप करना बंद। अब सिर्फ़ पिंच से टैप होगा।" else "रुककर टैप चालू। कर्सर को एक सेकंड रोको, टैप हो जाएगा।"
+        }
         if (any("gesture", "जेस्चर", "इशारे", "ishare", "haath se chala", "हाथ से चला", "air mouse", "एयर माउस", "air control", "एयर कंट्रोल", "hand control", "हैंड कंट्रोल")) {
             return if (any("band", "बंद", "stop", "off", "khatam", "खत्म")) AirControl.stop() else AirControl.start(ctx, hands)
         }

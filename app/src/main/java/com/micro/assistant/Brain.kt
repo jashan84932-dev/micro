@@ -604,6 +604,40 @@ Current date and time: $now (India).
             return null
         }
 
+        /** Like quickText but asks Gemini for strict JSON (used by the phone agent). */
+        fun quickJson(prompt: String, maxTokens: Int = 500): String? {
+            if (Prefs.geminiKey.isBlank()) return null
+            for (model in listOf("gemini-2.5-flash", "gemini-2.5-flash-lite")) {
+                val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                    .openConnection() as HttpURLConnection
+                try {
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 8000
+                    conn.readTimeout = 25000
+                    conn.doOutput = true
+                    conn.setRequestProperty("content-type", "application/json")
+                    conn.setRequestProperty("x-goog-api-key", Prefs.geminiKey)
+                    val body = JSONObject()
+                        .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
+                        .put("generationConfig", JSONObject().put("maxOutputTokens", maxTokens).put("responseMimeType", "application/json").put("temperature", 0.2).put("thinkingConfig", JSONObject().put("thinkingBudget", 0)))
+                    conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    if (conn.responseCode !in 200..299) continue
+                    val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    val out = JSONObject(text).optJSONArray("candidates")?.optJSONObject(0)
+                        ?.optJSONObject("content")?.optJSONArray("parts")?.let { ps ->
+                            val sb = StringBuilder()
+                            for (k in 0 until ps.length()) sb.append(ps.optJSONObject(k)?.optString("text", "") ?: "")
+                            sb.toString()
+                        }
+                    if (!out.isNullOrBlank()) return out
+                } catch (e: Exception) {
+                } finally {
+                    conn.disconnect()
+                }
+            }
+            return null
+        }
+
         private const val API_URL = "https://api.anthropic.com/v1/messages"
         private const val MAX_STEPS = 10
         private const val FREE_URL = "https://text.pollinations.ai/openai"
